@@ -49,8 +49,11 @@
   <xacro:property name="imu_height" value="0.006"/>
   <xacro:property name="imu_mass" value="0.006"/>
 
+  <!-- 轮子力矩限制 2.5 Nm -->
   <xacro:property name="wheel_effort_limit" value="2.5"/>
+  <!-- 轮子速度限制 35 rad/s -->
   <xacro:property name="wheel_velocity_limit" value="35.0"/>
+  <!-- 电机减速比 30:1 -->
   <xacro:property name="motor_gear_ratio" value="30.0"/>
 
   <material name="body_gray">

@@ -1,0 +1,141 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="imu_debug">
+    <physics type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <!-- Global light source -->
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <!-- Ground plane -->
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <!--
+      Temporary cradle for IMU debugging.
+
+      The robot is spawned at x=0, y=0, z=0.034 by gazebo.launch.py.
+      Its base_link is at the wheel axle, and the body box extends roughly:
+        x: -0.0425 .. 0.0425 m
+        y: -0.0270 .. 0.0270 m
+        z:  0.0440 .. 0.1740 m in world coordinates
+
+      These two static blocks sit just in front of and behind the body.
+      They are intentionally close enough to catch pitch motion, but leave
+      the wheels free so IMU orientation can be inspected without the car
+      immediately falling flat.
+    -->
+    <model name="front_pitch_support">
+      <static>true</static>
+      <pose>0.055 0 0.105 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.012 0.100 0.130</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.45 1.0 0.55</ambient>
+            <diffuse>0.1 0.45 1.0 0.55</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.012 0.100 0.130</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <model name="rear_pitch_support">
+      <static>true</static>
+      <pose>-0.055 0 0.105 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.012 0.100 0.130</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.45 1.0 0.55</ambient>
+            <diffuse>0.1 0.45 1.0 0.55</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.012 0.100 0.130</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Low side rails keep the wheels near the cradle while leaving pitch free. -->
+    <model name="left_wheel_rail">
+      <static>true</static>
+      <pose>0 0.095 0.025 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.180 0.012 0.050</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.25 0.25 0.28 1.0</ambient>
+            <diffuse>0.25 0.25 0.28 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.180 0.012 0.050</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <model name="right_wheel_rail">
+      <static>true</static>
+      <pose>0 -0.095 0.025 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.180 0.012 0.050</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.25 0.25 0.28 1.0</ambient>
+            <diffuse>0.25 0.25 0.28 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.180 0.012 0.050</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <gui fullscreen="0">
+      <camera name="user_camera">
+        <pose>0.45 -0.45 0.35 0 0.45 0.78</pose>
+      </camera>
+    </gui>
+  </world>
+</sdf>

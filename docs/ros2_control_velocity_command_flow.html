@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ROS 2 control 速度命令进入 Gazebo 的流程说明</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #667085;
+      --line: #d8dee9;
+      --blue: #2563eb;
+      --green: #0f766e;
+      --orange: #b45309;
+      --purple: #6d28d9;
+      --code-bg: #111827;
+      --code-ink: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.65;
+    }
+
+    header {
+      background: linear-gradient(135deg, #111827, #2563eb);
+      color: white;
+      padding: 46px 24px;
+    }
+
+    header .wrap,
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.2;
+    }
+
+    header p {
+      max-width: 860px;
+      margin: 0;
+      color: #dbeafe;
+      font-size: 18px;
+    }
+
+    main {
+      padding: 28px 20px 56px;
+    }
+
+    section,
+    nav,
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 28px rgb(15 23 42 / 6%);
+    }
+
+    section,
+    nav {
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 25px;
+    }
+
+    h3 {
+      margin: 22px 0 10px;
+      font-size: 19px;
+    }
+
+    p {
+      margin: 10px 0;
+    }
+
+    code {
+      border-radius: 6px;
+      background: #eef2ff;
+      color: #3730a3;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow: auto;
+      border-radius: 12px;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      padding: 16px;
+      line-height: 1.5;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+    }
+
+    ul,
+    ol {
+      padding-left: 1.35rem;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc a {
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #f8fafc;
+      color: var(--blue);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      padding: 16px;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .flow {
+      display: grid;
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .flow-step {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #f8fafc;
+      padding: 14px 16px;
+    }
+
+    .flow-step::after {
+      content: "↓";
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .flow-step:last-child::after {
+      content: "";
+      margin: 0;
+    }
+
+    .flow-step strong {
+      color: var(--green);
+    }
+
+    .note {
+      border-left: 5px solid var(--blue);
+      background: #eff6ff;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #1e3a8a;
+    }
+
+    .warning {
+      border-left: 5px solid var(--orange);
+      background: #fff7ed;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #7c2d12;
+    }
+
+    .tag {
+      display: inline-block;
+      margin: 4px 6px 4px 0;
+      border-radius: 999px;
+      background: #e0f2fe;
+      color: #075985;
+      padding: 3px 10px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .node {
+      color: var(--purple);
+      font-weight: 700;
+    }
+
+    .topic {
+      color: var(--blue);
+      font-weight: 700;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>ROS 2 control 速度命令如何进入 Gazebo</h1>
+      <p>
+        本文结合当前运行出来的 node 和 topic，解释手动执行
+        <code>ros2 topic pub /wheel_velocity_controller/commands ...</code>
+        后，速度命令如何一步步到达 Gazebo，并最终让左右轮转动。
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <nav aria-label="页面目录">
+      <h2>目录</h2>
+      <ul class="toc">
+        <li><a href="#runtime">当前运行时图谱</a></li>
+        <li><a href="#command">手动命令入口</a></li>
+        <li><a href="#flow">命令传递主链路</a></li>
+        <li><a href="#nodes">节点职责</a></li>
+        <li><a href="#topics">话题职责</a></li>
+        <li><a href="#feedback">状态反馈链路</a></li>
+        <li><a href="#debug">调试命令</a></li>
+      </ul>
+    </nav>
+
+    <section id="runtime">
+      <h2>当前运行时图谱</h2>
+      <p>
+        你当前看到的节点说明 Gazebo、robot_state_publisher、controller_manager、
+        wheel controller、IMU 插件都已经启动。关键节点如下：
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <h3 class="node">/gazebo</h3>
+          <p>Gazebo 仿真进程，负责物理世界、碰撞、关节运动、传感器更新。</p>
+          <span class="tag">仿真世界</span>
+          <span class="tag">物理引擎</span>
+        </div>
+
+        <div class="card">
+          <h3 class="node">/gazebo_ros2_control</h3>
+          <p>
+            由 <code>libgazebo_ros2_control.so</code> 创建的 ROS 2 侧节点。
+            它把 Gazebo 中的 joint 和 ros2_control 的硬件接口连起来。
+          </p>
+          <span class="tag">Gazebo bridge</span>
+          <span class="tag">hardware interface</span>
+        </div>
+
+        <div class="card">
+          <h3 class="node">/controller_manager</h3>
+          <p>
+            ros2_control 的控制器管理器。它按 YAML 加载 controller，并周期性执行 read/update/write。
+          </p>
+          <span class="tag">update_rate 200 Hz</span>
+          <span class="tag">加载 controller</span>
+        </div>
+
+        <div class="card">
+          <h3 class="node">/wheel_velocity_controller</h3>
+          <p>
+            轮子速度控制器，类型是
+            <code>velocity_controllers/JointGroupVelocityController</code>。
+            它订阅速度数组，并写入左右轮的 velocity command interface。
+          </p>
+          <span class="tag">速度命令入口</span>
+          <span class="tag">left/right wheel</span>
+        </div>
+
+        <div class="card">
+          <h3 class="node">/robot_state_publisher</h3>
+          <p>
+            持有 <code>robot_description</code>，订阅 <code>/joint_states</code>，
+            发布 <code>/tf</code> 和 <code>/tf_static</code>。
+          </p>
+          <span class="tag">robot_description</span>
+          <span class="tag">TF</span>
+        </div>
+
+        <div class="card">
+          <h3 class="node">/joint_state_broadcaster</h3>
+          <p>
+            从 ros2_control 的 state interface 读取关节位置和速度，并发布
+            <code>/joint_states</code>。
+          </p>
+          <span class="tag">关节状态</span>
+          <span class="tag">反馈</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="command">
+      <h2>手动命令入口</h2>
+      <p>
+        让轮子转起来时，你在终端发布的是一个
+        <code>std_msgs/msg/Float64MultiArray</code> 消息：
+      </p>
+
+      <pre><code>ros2 topic pub /wheel_velocity_controller/commands \
+  std_msgs/msg/Float64MultiArray \
+  "{data: [5.0, 5.0]}"</code></pre>
+
+      <p>
+        这个数组的顺序来自
+        <code>config/ros2_control_balance_65mm.yaml</code>：
+      </p>
+
+      <pre><code>wheel_velocity_controller:
+  ros__parameters:
+    joints:
+      - left_wheel_joint
+      - right_wheel_joint
+    command_interfaces:
+      - velocity</code></pre>
+
+      <p>
+        因此 <code>{data: [5.0, 5.0]}</code> 的含义是：
+      </p>
+      <ul>
+        <li><code>data[0]</code> 写给 <code>left_wheel_joint/velocity</code>。</li>
+        <li><code>data[1]</code> 写给 <code>right_wheel_joint/velocity</code>。</li>
+        <li>单位是关节角速度，通常按 <code>rad/s</code> 理解。</li>
+      </ul>
+
+      <p class="warning">
+        这里发的是“轮子关节角速度”，不是底盘线速度 <code>m/s</code>。
+        如果以后要用 <code>cmd_vel</code> 控制小车，需要再写一层节点，把线速度/角速度换算成左右轮角速度。
+      </p>
+    </section>
+
+    <section id="flow">
+      <h2>命令传递主链路</h2>
+      <p>
+        手动发布速度命令后，主链路可以理解成下面这条路径：
+      </p>
+
+      <div class="flow">
+        <div class="flow-step">
+          <strong>1. 控制台 ros2 topic pub</strong><br>
+          向 <span class="topic">/wheel_velocity_controller/commands</span>
+          发布 <code>Float64MultiArray</code>，例如 <code>[5.0, 5.0]</code>。
+        </div>
+
+        <div class="flow-step">
+          <strong>2. /wheel_velocity_controller 接收命令</strong><br>
+          <code>JointGroupVelocityController</code> 按 YAML 中的 joints 顺序解析数组。
+        </div>
+
+        <div class="flow-step">
+          <strong>3. controller 写入 command interface</strong><br>
+          数值被写到 <code>left_wheel_joint/velocity</code> 和
+          <code>right_wheel_joint/velocity</code> 的 command interface。
+        </div>
+
+        <div class="flow-step">
+          <strong>4. /controller_manager 周期执行 update</strong><br>
+          按 YAML 中的 <code>update_rate: 200</code> 运行控制循环，
+          把 controller 的输出交给硬件接口。
+        </div>
+
+        <div class="flow-step">
+          <strong>5. gazebo_ros2_control/GazeboSystem 接收写入</strong><br>
+          <code>GazeboSystem</code> 是 ros2_control 的仿真硬件后端。
+          它把 velocity command 转换为 Gazebo 关节控制。
+        </div>
+
+        <div class="flow-step">
+          <strong>6. Gazebo 物理引擎更新轮子</strong><br>
+          Gazebo 在仿真步进中更新左右轮关节，轮子开始转动，并与地面发生摩擦接触。
+        </div>
+      </div>
+
+      <p class="note">
+        从 ROS 2 图上看，你直接发布给的是 <code>/wheel_velocity_controller/commands</code>。
+        从 Gazebo 内部看，真正让轮子动起来的是
+        <code>libgazebo_ros2_control.so</code> 加载出的 <code>GazeboSystem</code>
+        对 Gazebo joint 的写入。
+      </p>
+    </section>
+
+    <section id="nodes">
+      <h2>节点职责</h2>
+
+      <h3>/robot_state_publisher 不是轮子控制器</h3>
+      <p>
+        你看到 <code>/robot_state_publisher</code> 订阅 <code>/joint_states</code>，
+        发布 <code>/tf</code>、<code>/tf_static</code> 和 <code>/robot_description</code>。
+        它的作用是发布机器人模型和 TF，不负责接收轮子速度命令。
+      </p>
+
+      <pre><code>/robot_state_publisher
+  Subscribers:
+    /joint_states
+  Publishers:
+    /robot_description
+    /tf
+    /tf_static</code></pre>
+
+      <h3>/controller_manager 是控制循环中心</h3>
+      <p>
+        <code>/controller_manager</code> 管理所有 controller。launch 文件中通过
+        <code>spawner</code> 启动了三个 controller：
+      </p>
+
+      <pre><code>joint_state_broadcaster
+wheel_velocity_controller
+imu_sensor_broadcaster</code></pre>
+
+      <p>
+        它会按照 <code>update_rate: 200</code> 周期执行控制循环：
+      </p>
+
+      <pre><code>read state from GazeboSystem
+update active controllers
+write commands to GazeboSystem</code></pre>
+
+      <h3>/gazebo_ros2_control 是 Gazebo 和 ros2_control 的桥</h3>
+      <p>
+        xacro 中这段告诉 Gazebo 加载桥接插件：
+      </p>
+
+      <pre><code>&lt;gazebo&gt;
+  &lt;plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control"&gt;
+    &lt;robot_param&gt;robot_description&lt;/robot_param&gt;
+    &lt;robot_param_node&gt;robot_state_publisher&lt;/robot_param_node&gt;
+    &lt;parameters&gt;$(find balance_car_description)/config/ros2_control_balance_65mm.yaml&lt;/parameters&gt;
+  &lt;/plugin&gt;
+&lt;/gazebo&gt;</code></pre>
+
+      <p>
+        xacro 中这段告诉 ros2_control：本机器人使用 Gazebo 提供的虚拟硬件：
+      </p>
+
+      <pre><code>&lt;ros2_control name="GazeboSystem" type="system"&gt;
+  &lt;hardware&gt;
+    &lt;plugin&gt;gazebo_ros2_control/GazeboSystem&lt;/plugin&gt;
+  &lt;/hardware&gt;
+&lt;/ros2_control&gt;</code></pre>
+    </section>
+
+    <section id="topics">
+      <h2>话题职责</h2>
+
+      <div class="grid">
+        <div class="card">
+          <h3 class="topic">/wheel_velocity_controller/commands</h3>
+          <p>
+            速度命令入口。手动控制台发布，或者以后由你自己的平衡控制节点发布。
+          </p>
+          <span class="tag">Float64MultiArray</span>
+          <span class="tag">写命令</span>
+        </div>
+
+        <div class="card">
+          <h3 class="topic">/joint_states</h3>
+          <p>
+            关节状态输出，通常由 <code>joint_state_broadcaster</code> 发布，
+            <code>robot_state_publisher</code> 订阅后转换成 TF。
+          </p>
+          <span class="tag">位置</span>
+          <span class="tag">速度</span>
+        </div>
+
+        <div class="card">
+          <h3 class="topic">/dynamic_joint_states</h3>
+          <p>
+            ros2_control 风格的更详细接口状态，适合调试每个 joint 的 state interface。
+          </p>
+          <span class="tag">调试</span>
+          <span class="tag">interface state</span>
+        </div>
+
+        <div class="card">
+          <h3 class="topic">/tf 与 /tf_static</h3>
+          <p>
+            TF 树输出。轮子转动后，轮子 link 相对 <code>base_link</code> 的姿态会通过这里体现。
+          </p>
+          <span class="tag">坐标变换</span>
+          <span class="tag">可视化</span>
+        </div>
+
+        <div class="card">
+          <h3 class="topic">/imu/data</h3>
+          <p>
+            Gazebo IMU 插件输出的话题，来自 <code>/imu/imu_plugin</code>。
+            后续做平衡控制时可用它读取车体姿态和角速度。
+          </p>
+          <span class="tag">Gazebo IMU plugin</span>
+        </div>
+
+        <div class="card">
+          <h3 class="topic">/imu_sensor_broadcaster/imu</h3>
+          <p>
+            ros2_control 的 IMU broadcaster 输出。它与 <code>/imu/data</code>
+            都可能提供 IMU 信息，实际控制时要明确选用其中一个数据源。
+          </p>
+          <span class="tag">ros2_control IMU</span>
+        </div>
+
+        <div class="card">
+          <h3 class="topic">/robot_description</h3>
+          <p>
+            展开后的机器人描述。Gazebo ros2_control 插件通过
+            <code>robot_description</code> 理解 joint、sensor 和 ros2_control 接口。
+          </p>
+          <span class="tag">URDF</span>
+          <span class="tag">模型描述</span>
+        </div>
+
+        <div class="card">
+          <h3 class="topic">/clock</h3>
+          <p>
+            Gazebo 发布的仿真时间。使用 <code>use_sim_time: true</code> 的节点会跟随这个时间。
+          </p>
+          <span class="tag">仿真时间</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="feedback">
+      <h2>状态反馈链路</h2>
+      <p>
+        速度命令进入 Gazebo 只是控制的一半。另一半是 Gazebo 把关节状态和传感器状态反馈回 ROS 2。
+      </p>
+
+      <div class="flow">
+        <div class="flow-step">
+          <strong>1. Gazebo 更新物理状态</strong><br>
+          左右轮关节位置、速度、车体姿态、IMU 数据在仿真步进中更新。
+        </div>
+
+        <div class="flow-step">
+          <strong>2. GazeboSystem read()</strong><br>
+          <code>gazebo_ros2_control/GazeboSystem</code> 从 Gazebo joint/sensor 读取 state。
+        </div>
+
+        <div class="flow-step">
+          <strong>3. joint_state_broadcaster 发布</strong><br>
+          关节状态通过 <span class="topic">/joint_states</span> 和
+          <span class="topic">/dynamic_joint_states</span> 输出。
+        </div>
+
+        <div class="flow-step">
+          <strong>4. robot_state_publisher 发布 TF</strong><br>
+          它订阅 <span class="topic">/joint_states</span>，结合 URDF 发布
+          <span class="topic">/tf</span> 和 <span class="topic">/tf_static</span>。
+        </div>
+
+        <div class="flow-step">
+          <strong>5. IMU 话题输出</strong><br>
+          IMU 数据通过 <span class="topic">/imu/data</span> 或
+          <span class="topic">/imu_sensor_broadcaster/imu</span> 被控制节点读取。
+        </div>
+      </div>
+
+      <p class="note">
+        后续写平衡控制器时，你自己的节点通常会订阅 IMU 和轮子状态，然后发布
+        <code>/wheel_velocity_controller/commands</code>。这就形成闭环控制。
+      </p>
+    </section>
+
+    <section id="debug">
+      <h2>调试命令</h2>
+
+      <h3>确认 controller 状态</h3>
+      <pre><code>ros2 control list_controllers</code></pre>
+
+      <p>期望看到：</p>
+      <pre><code>joint_state_broadcaster     active
+wheel_velocity_controller   active
+imu_sensor_broadcaster      active</code></pre>
+
+      <h3>确认硬件接口</h3>
+      <pre><code>ros2 control list_hardware_interfaces</code></pre>
+
+      <p>重点看左右轮 velocity command interface 是否 available/claimed：</p>
+      <pre><code>left_wheel_joint/velocity
+right_wheel_joint/velocity</code></pre>
+
+      <h3>发布速度命令</h3>
+      <pre><code># 前进方向测试
+ros2 topic pub /wheel_velocity_controller/commands \
+  std_msgs/msg/Float64MultiArray \
+  "{data: [5.0, 5.0]}"
+
+# 原地旋转测试
+ros2 topic pub /wheel_velocity_controller/commands \
+  std_msgs/msg/Float64MultiArray \
+  "{data: [5.0, -5.0]}"
+
+# 停止
+ros2 topic pub --once /wheel_velocity_controller/commands \
+  std_msgs/msg/Float64MultiArray \
+  "{data: [0.0, 0.0]}"</code></pre>
+
+      <h3>观察反馈</h3>
+      <pre><code>ros2 topic echo /joint_states
+ros2 topic echo /dynamic_joint_states
+ros2 topic echo /imu/data
+ros2 topic echo /imu_sensor_broadcaster/imu</code></pre>
+
+      <h3>查看图结构</h3>
+      <pre><code>ros2 node list
+ros2 topic list
+ros2 node info /wheel_velocity_controller
+ros2 topic info /wheel_velocity_controller/commands</code></pre>
+
+      <p class="warning">
+        如果发布命令后轮子不动，优先检查三件事：
+        <code>wheel_velocity_controller</code> 是否 active、
+        <code>/wheel_velocity_controller/commands</code> 类型是否正确、
+        左右轮 <code>velocity</code> command interface 是否被 controller claimed。
+      </p>
+    </section>
+  </main>
+</body>
+</html>

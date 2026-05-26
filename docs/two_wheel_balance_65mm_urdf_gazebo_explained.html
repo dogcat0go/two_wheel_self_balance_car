@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>two_wheel_balance_65mm.urdf.xacro 与 Gazebo 插件关系说明</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #5f6b7a;
+      --line: #d8dee9;
+      --blue: #2563eb;
+      --green: #0f766e;
+      --orange: #b45309;
+      --red: #b91c1c;
+      --code-bg: #111827;
+      --code-ink: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.65;
+    }
+
+    header {
+      background: linear-gradient(135deg, #0f172a, #1d4ed8);
+      color: white;
+      padding: 48px 24px;
+    }
+
+    header .wrap,
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(28px, 4vw, 44px);
+      line-height: 1.2;
+    }
+
+    header p {
+      max-width: 820px;
+      margin: 0;
+      color: #dbeafe;
+      font-size: 18px;
+    }
+
+    main {
+      padding: 28px 20px 56px;
+    }
+
+    section,
+    nav,
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgb(15 23 42 / 6%);
+    }
+
+    section,
+    nav {
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 25px;
+      color: #111827;
+    }
+
+    h3 {
+      margin: 22px 0 10px;
+      font-size: 19px;
+      color: #111827;
+    }
+
+    p {
+      margin: 10px 0;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    code {
+      border-radius: 6px;
+      background: #eef2ff;
+      color: #3730a3;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow: auto;
+      border-radius: 12px;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      padding: 16px;
+      line-height: 1.5;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+    }
+
+    ul,
+    ol {
+      padding-left: 1.35rem;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc a {
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #f8fafc;
+      font-weight: 600;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      padding: 16px;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .note {
+      border-left: 5px solid var(--blue);
+      background: #eff6ff;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #1e3a8a;
+    }
+
+    .warning {
+      border-left: 5px solid var(--orange);
+      background: #fff7ed;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #7c2d12;
+    }
+
+    .flow {
+      display: grid;
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .flow-step {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #f8fafc;
+      padding: 14px 16px;
+    }
+
+    .flow-step strong {
+      color: var(--green);
+    }
+
+    .flow-step::after {
+      content: "↓";
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .flow-step:last-child::after {
+      content: "";
+      margin: 0;
+    }
+
+    .tag {
+      display: inline-block;
+      margin: 4px 6px 4px 0;
+      border-radius: 999px;
+      background: #e0f2fe;
+      color: #075985;
+      padding: 3px 10px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .mini-title {
+      margin-bottom: 6px;
+      color: #111827;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>two_wheel_balance_65mm.urdf.xacro 与 Gazebo 插件关系说明</h1>
+      <p>
+        本文解释 <code>src/balance_car_description/urdf/two_wheel_balance_65mm.urdf.xacro</code>
+        的基础语法、机器人结构，以及它如何通过 Gazebo 插件、<code>ros2_control</code> 和 launch 文件接入仿真。
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <nav aria-label="页面目录">
+      <h2>目录</h2>
+      <ul class="toc">
+        <li><a href="#big-picture">整体关系</a></li>
+        <li><a href="#xacro-basics">xacro / URDF 基础语法</a></li>
+        <li><a href="#robot-structure">机器人结构</a></li>
+        <li><a href="#gazebo-tags">Gazebo 标签</a></li>
+        <li><a href="#plugins">Gazebo 插件关系</a></li>
+        <li><a href="#ros2-control">ros2_control 控制链路</a></li>
+        <li><a href="#launch-flow">launch 启动流程</a></li>
+        <li><a href="#change-guide">修改检查清单</a></li>
+      </ul>
+    </nav>
+
+    <section id="big-picture">
+      <h2>整体关系</h2>
+      <p>
+        这个文件不是普通的最终 URDF，而是 <strong>xacro 模板</strong>。
+        launch 文件会先把它展开成完整 URDF 字符串，再交给
+        <code>robot_state_publisher</code> 和 Gazebo 使用。
+      </p>
+
+      <div class="flow">
+        <div class="flow-step">
+          <strong>xacro 文件</strong>：定义尺寸、质量、link、joint、Gazebo 扩展和 ros2_control 硬件接口。
+        </div>
+        <div class="flow-step">
+          <strong>gazebo.launch.py</strong>：调用 <code>xacro.process_file()</code> 展开模型，并启动 Gazebo、robot_state_publisher、spawn_entity 和控制器 spawner。
+        </div>
+        <div class="flow-step">
+          <strong>Gazebo</strong>：读取展开后的 URDF，生成物理模型、碰撞模型、IMU 传感器和 ros2_control 仿真硬件。
+        </div>
+        <div class="flow-step">
+          <strong>ros2_control YAML</strong>：声明要加载哪些 controller，以及这些 controller 绑定哪些 joint 或 sensor。
+        </div>
+      </div>
+
+      <p class="note">
+        简单说：xacro 负责“机器人长什么样、有哪些接口”，Gazebo 插件负责“在仿真里让这些接口动起来或产生数据”，YAML 负责“让 ROS 2 controller_manager 加载对应控制器”。
+      </p>
+    </section>
+
+    <section id="xacro-basics">
+      <h2>xacro / URDF 基础语法</h2>
+
+      <div class="grid">
+        <div class="card">
+          <h3>根标签</h3>
+          <p>
+            文件以 <code>&lt;robot&gt;</code> 作为根节点，并声明
+            <code>xmlns:xacro</code>，这样才能使用 <code>xacro:property</code>
+            和 <code>xacro:macro</code>。
+          </p>
+          <pre><code>&lt;robot xmlns:xacro="http://www.ros.org/wiki/xacro"
+       name="two_wheel_balance_65mm"&gt;</code></pre>
+        </div>
+
+        <div class="card">
+          <h3>属性 property</h3>
+          <p>
+            <code>xacro:property</code> 类似变量。比如轮子半径、车体尺寸、质量都集中在文件开头，后面用
+            <code>${...}</code> 引用。
+          </p>
+          <pre><code>&lt;xacro:property name="wheel_radius" value="0.0325"/&gt;
+&lt;xacro:property name="wheel_diameter" value="${2.0 * wheel_radius}"/&gt;</code></pre>
+        </div>
+
+        <div class="card">
+          <h3>表达式</h3>
+          <p>
+            <code>${...}</code> 中可以做简单数学计算。当前文件用它计算轮距的一半、负方向位置、惯量公式等。
+          </p>
+          <pre><code>&lt;origin xyz="0 ${wheel_separation / 2.0} 0" rpy="0 0 0"/&gt;
+&lt;origin xyz="0 ${-wheel_separation / 2.0} 0" rpy="0 0 0"/&gt;</code></pre>
+        </div>
+
+        <div class="card">
+          <h3>宏 macro</h3>
+          <p>
+            <code>xacro:macro</code> 用来复用结构。当前文件把盒子惯量、圆柱惯量、轮子 link、电机 link 做成宏，减少重复。
+          </p>
+          <pre><code>&lt;xacro:macro name="wheel_link" params="name"&gt;
+  &lt;link name="${name}"&gt;
+    ...
+  &lt;/link&gt;
+&lt;/xacro:macro&gt;</code></pre>
+        </div>
+      </div>
+
+      <h3>URDF 核心概念</h3>
+      <ul>
+        <li><code>link</code>：机器人刚体，例如 <code>base_link</code>、<code>left_wheel_link</code>、<code>imu_link</code>。</li>
+        <li><code>joint</code>：连接两个 link 的关节，例如左右轮是 <code>continuous</code>，电池、板子、IMU 是 <code>fixed</code>。</li>
+        <li><code>visual</code>：显示外观，主要给 RViz/Gazebo 看。</li>
+        <li><code>collision</code>：碰撞几何，Gazebo 物理引擎用它计算接触。</li>
+        <li><code>inertial</code>：质量、质心和转动惯量，直接影响仿真动态效果。</li>
+        <li><code>origin xyz rpy</code>：局部坐标变换，<code>xyz</code> 是平移，<code>rpy</code> 是 roll/pitch/yaw。</li>
+        <li><code>axis</code>：关节运动轴。这里左右轮的 <code>axis xyz="0 1 0"</code> 表示轮子绕 y 轴转。</li>
+      </ul>
+
+      <p class="warning">
+        当前坐标约定是 x 向前、y 向左、z 向上，<code>base_link</code> 位于两个轮轴的中点。
+        平衡车类模型对质心高度、轮子摩擦和惯量非常敏感，修改尺寸或质量后最好重新检查仿真稳定性。
+      </p>
+    </section>
+
+    <section id="robot-structure">
+      <h2>机器人结构</h2>
+
+      <p>
+        当前模型围绕 <code>base_link</code> 构建。<code>base_link</code> 位于轮轴中心，但车体几何和质心通过
+        <code>body_com_z</code> 向上偏移，因此它更像一个倒立摆系统。
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <h3>主车体</h3>
+          <p><code>base_link</code> 是父 link，包含车体盒子的 visual、collision 和 inertial。</p>
+          <span class="tag">body_mass</span>
+          <span class="tag">body_com_z</span>
+          <span class="tag">box_inertial</span>
+        </div>
+
+        <div class="card">
+          <h3>左右轮</h3>
+          <p>
+            <code>left_wheel_link</code> 和 <code>right_wheel_link</code> 通过
+            <code>left_wheel_joint</code>、<code>right_wheel_joint</code> 连接到 <code>base_link</code>。
+          </p>
+          <span class="tag">continuous joint</span>
+          <span class="tag">velocity command</span>
+        </div>
+
+        <div class="card">
+          <h3>固定部件</h3>
+          <p>
+            电机、电池、控制板、IMU 都通过 fixed joint 固定到 <code>base_link</code>。
+            它们虽然不运动，但会影响质量分布和 TF 树。
+          </p>
+          <span class="tag">fixed joint</span>
+          <span class="tag">extra_joints</span>
+        </div>
+
+        <div class="card">
+          <h3>IMU</h3>
+          <p>
+            <code>imu_link</code> 上不仅有 URDF 几何，还在 Gazebo 扩展标签里挂了一个
+            <code>type="imu"</code> 的 sensor。
+          </p>
+          <span class="tag">imu_sensor</span>
+          <span class="tag">imu_link</span>
+        </div>
+      </div>
+
+      <h3>为什么车轮直接连接到 base_link</h3>
+      <p>
+        真实机械结构里，车轮通常安装在电机轴或减速箱输出轴上。但当前 URDF 采用的是仿真中的简化建模：
+        <code>left_wheel_joint</code> 和 <code>right_wheel_joint</code> 直接以 <code>base_link</code>
+        为 parent，电机 link 则通过 fixed joint 固定到 <code>base_link</code>，只表示电机外壳、质量和外观。
+      </p>
+      <pre><code>base_link
+├── left_wheel_joint  -> left_wheel_link   # continuous，可转动
+├── right_wheel_joint -> right_wheel_link  # continuous，可转动
+├── left_motor_joint  -> left_motor_link   # fixed，仅表示电机本体
+└── right_motor_joint -> right_motor_link  # fixed，仅表示电机本体</code></pre>
+      <p>
+        这种写法不代表真实装配顺序，而是把“电机输出轴位置”直接定义成
+        <code>base_link</code> 到 wheel link 的转动关节。好处是 TF 树更简单，
+        <code>ros2_control</code> 可以直接控制左右轮关节，Gazebo 中也少一层固定 link 与转动 joint 的组合。
+      </p>
+      <p>
+        如果希望模型更贴近真实机械结构，也可以改成
+        <code>base_link -> motor_link -> wheel_link</code>：
+      </p>
+      <pre><code>base_link
+└── left_motor_joint fixed
+    └── left_motor_link
+        └── left_wheel_joint continuous
+            └── left_wheel_link</code></pre>
+      <p class="warning">
+        改成真实传动链后，<code>left_wheel_joint</code> / <code>right_wheel_joint</code>
+        的 <code>origin</code> 就要改为相对于 motor link 的坐标，而不是相对于
+        <code>base_link</code> 的坐标。如果 motor link 原点正好放在轮轴中心，wheel joint 的
+        <code>origin</code> 才可以写成 <code>0 0 0</code>。
+      </p>
+    </section>
+
+    <section id="gazebo-tags">
+      <h2>Gazebo 标签</h2>
+
+      <p>
+        URDF 标准主要描述机器人结构。Gazebo 需要的仿真专属信息，则通过
+        <code>&lt;gazebo&gt;</code> 扩展标签添加。
+      </p>
+
+      <h3>全局 Gazebo 标签</h3>
+      <p>
+        没有 <code>reference</code> 属性的 <code>&lt;gazebo&gt;</code> 是作用于整个机器人模型的扩展。
+        当前文件在这里加载 <code>libgazebo_ros2_control.so</code>。
+      </p>
+      <pre><code>&lt;gazebo&gt;
+  &lt;plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control"&gt;
+    &lt;robot_param&gt;robot_description&lt;/robot_param&gt;
+    &lt;robot_param_node&gt;robot_state_publisher&lt;/robot_param_node&gt;
+    &lt;parameters&gt;$(find balance_car_description)/config/ros2_control_balance_65mm.yaml&lt;/parameters&gt;
+  &lt;/plugin&gt;
+&lt;/gazebo&gt;</code></pre>
+
+      <h3>针对某个 link 的 Gazebo 标签</h3>
+      <p>
+        带 <code>reference="..."</code> 的 <code>&lt;gazebo&gt;</code> 只作用在某个 link 上。
+        当前文件用它设置材质、轮胎摩擦、接触参数和 IMU sensor。
+      </p>
+      <pre><code>&lt;gazebo reference="left_wheel_link"&gt;
+  &lt;material&gt;Gazebo/Black&lt;/material&gt;
+  &lt;mu1&gt;1.45&lt;/mu1&gt;
+  &lt;mu2&gt;0.85&lt;/mu2&gt;
+  &lt;kp&gt;1000000.0&lt;/kp&gt;
+  &lt;kd&gt;4.0&lt;/kd&gt;
+&lt;/gazebo&gt;</code></pre>
+
+      <ul>
+        <li><code>material</code>：Gazebo 中显示用材质，不等同于 URDF 的 <code>&lt;material&gt;</code>。</li>
+        <li><code>mu1</code> / <code>mu2</code>：两个方向的摩擦系数，轮地接触效果主要看这里。</li>
+        <li><code>kp</code> / <code>kd</code>：接触约束的刚度和阻尼，过低可能穿模，过高可能抖动。</li>
+        <li><code>minDepth</code> / <code>maxVel</code>：接触修正参数，用来限制接触穿透和修正速度。</li>
+        <li><code>selfCollide</code>：是否启用自身碰撞，当前 <code>base_link</code> 设置为 false。</li>
+      </ul>
+    </section>
+
+    <section id="plugins">
+      <h2>Gazebo 插件关系</h2>
+
+      <h3>1. gazebo_ros2_control 插件</h3>
+      <p>
+        <code>libgazebo_ros2_control.so</code> 是 Gazebo 和 ROS 2 control 的桥。它读取机器人描述中的
+        <code>&lt;ros2_control&gt;</code> 块，创建一个仿真硬件系统
+        <code>gazebo_ros2_control/GazeboSystem</code>。
+      </p>
+
+      <div class="flow">
+        <div class="flow-step">
+          <strong>robot_state_publisher</strong> 发布参数 <code>robot_description</code>。
+        </div>
+        <div class="flow-step">
+          <strong>Gazebo 插件</strong> 通过 <code>robot_param</code> 和 <code>robot_param_node</code> 找到这份机器人描述。
+        </div>
+        <div class="flow-step">
+          <strong>ros2_control 块</strong> 声明左右轮 joint 的 velocity command interface 和 position/velocity state interface。
+        </div>
+        <div class="flow-step">
+          <strong>controller_manager</strong> 按 YAML 加载 <code>joint_state_broadcaster</code>、<code>wheel_velocity_controller</code> 和 <code>imu_sensor_broadcaster</code>。
+        </div>
+      </div>
+
+      <p>
+        这里的关键对应关系是：
+        <code>left_wheel_joint</code> / <code>right_wheel_joint</code>
+        必须同时出现在 URDF joint、<code>&lt;ros2_control&gt;</code> joint 和 YAML controller joints 中。
+      </p>
+
+      <h3>2. IMU sensor 插件</h3>
+      <p>
+        <code>imu_link</code> 的 Gazebo 扩展里定义了一个名为 <code>imu_sensor</code> 的 IMU 传感器，并加载
+        <code>libgazebo_ros_imu_sensor.so</code> 把 Gazebo 传感器数据发布到 ROS 2。
+      </p>
+
+      <pre><code>&lt;gazebo reference="imu_link"&gt;
+  &lt;sensor name="imu_sensor" type="imu"&gt;
+    &lt;update_rate&gt;250&lt;/update_rate&gt;
+    ...
+    &lt;plugin filename="libgazebo_ros_imu_sensor.so" name="imu_plugin"&gt;
+      &lt;ros&gt;
+        &lt;namespace&gt;imu&lt;/namespace&gt;
+        &lt;remapping&gt;~/out:=data&lt;/remapping&gt;
+      &lt;/ros&gt;
+      &lt;frame_name&gt;imu_link&lt;/frame_name&gt;
+    &lt;/plugin&gt;
+  &lt;/sensor&gt;
+&lt;/gazebo&gt;</code></pre>
+
+      <ul>
+        <li><code>sensor name="imu_sensor"</code>：Gazebo 里的传感器名称，也被 <code>ros2_control</code> 的 sensor 块引用。</li>
+        <li><code>update_rate</code>：IMU 仿真更新频率，当前是 250 Hz。</li>
+        <li><code>noise</code>：模拟角速度和线加速度噪声。</li>
+        <li><code>namespace</code> 加 <code>remapping</code>：通常会把输出映射到类似 <code>/imu/data</code> 的话题。</li>
+        <li><code>frame_name</code>：消息里的坐标系，当前为 <code>imu_link</code>。</li>
+      </ul>
+
+      <p class="note">
+        当前文件里同时存在 Gazebo IMU ROS 插件和 <code>imu_sensor_broadcaster</code>。前者负责从 Gazebo sensor 直接发布 ROS IMU 数据；后者通过 ros2_control 的 sensor state interface 发布/广播传感器状态。实际使用时要确认最终需要订阅哪个话题，避免控制器读错数据源。
+      </p>
+    </section>
+
+    <section id="ros2-control">
+      <h2>ros2_control 控制链路</h2>
+
+      <p>
+        <code>&lt;ros2_control&gt;</code> 块定义“Gazebo 里有哪些硬件接口”。YAML 文件定义“controller_manager 要加载哪些控制器，以及这些控制器使用哪些接口”。
+      </p>
+
+      <h3>xacro 里的硬件接口</h3>
+      <pre><code>&lt;ros2_control name="GazeboSystem" type="system"&gt;
+  &lt;hardware&gt;
+    &lt;plugin&gt;gazebo_ros2_control/GazeboSystem&lt;/plugin&gt;
+  &lt;/hardware&gt;
+
+  &lt;joint name="left_wheel_joint"&gt;
+    &lt;command_interface name="velocity"&gt;
+      &lt;param name="min"&gt;${-wheel_velocity_limit}&lt;/param&gt;
+      &lt;param name="max"&gt;${wheel_velocity_limit}&lt;/param&gt;
+    &lt;/command_interface&gt;
+    &lt;state_interface name="position"/&gt;
+    &lt;state_interface name="velocity"/&gt;
+  &lt;/joint&gt;
+&lt;/ros2_control&gt;</code></pre>
+
+      <h3>YAML 里的控制器</h3>
+      <pre><code>controller_manager:
+  ros__parameters:
+    update_rate: 200
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    wheel_velocity_controller:
+      type: velocity_controllers/JointGroupVelocityController
+    imu_sensor_broadcaster:
+      type: imu_sensor_broadcaster/IMUSensorBroadcaster</code></pre>
+
+      <div class="grid">
+        <div class="card">
+          <h3>joint_state_broadcaster</h3>
+          <p>
+            发布关节状态。YAML 中的 <code>extra_joints</code> 把 fixed joints 也放进关节状态输出，便于调试和显示完整结构。
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>wheel_velocity_controller</h3>
+          <p>
+            类型是 <code>JointGroupVelocityController</code>，控制
+            <code>left_wheel_joint</code> 和 <code>right_wheel_joint</code> 的 velocity command interface。
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>imu_sensor_broadcaster</h3>
+          <p>
+            绑定 <code>sensor_name: imu_sensor</code> 和 <code>frame_id: imu_link</code>，名称需要和 xacro 中的 sensor 定义一致。
+          </p>
+        </div>
+      </div>
+
+      <p class="warning">
+        如果改了 joint 名、sensor 名或 controller 名，需要同步修改三个地方：
+        xacro 的 URDF joint/sensor、xacro 的 <code>&lt;ros2_control&gt;</code> 块、以及
+        <code>config/ros2_control_balance_65mm.yaml</code>。
+      </p>
+    </section>
+
+    <section id="launch-flow">
+      <h2>launch 启动流程</h2>
+
+      <p>
+        <code>launch/gazebo.launch.py</code> 把模型和插件串起来。它主要做下面几件事：
+      </p>
+
+      <ol>
+        <li>定位包路径和 xacro 文件：<code>get_package_share_directory("balance_car_description")</code>。</li>
+        <li>调用 <code>xacro.process_file()</code> 把 xacro 展开成 URDF XML。</li>
+        <li>启动 Gazebo，并加载 <code>worlds/empty.world</code>。</li>
+        <li>启动 <code>robot_state_publisher</code>，把 <code>robot_description</code> 作为参数提供给其他节点和插件。</li>
+        <li>用 <code>gazebo_ros/spawn_entity.py</code> 把机器人实体生成到 Gazebo 世界中。</li>
+        <li>用 <code>controller_manager/spawner</code> 依次加载 joint state、轮速控制器和 IMU broadcaster。</li>
+      </ol>
+
+      <p>
+        这意味着 Gazebo 插件不是独立工作的。它依赖 launch 中的
+        <code>robot_state_publisher</code> 参数，也依赖 YAML 中声明的 controller 配置。
+      </p>
+
+      <pre><code>ros2 launch balance_car_description gazebo.launch.py</code></pre>
+    </section>
+
+    <section id="change-guide">
+      <h2>修改检查清单</h2>
+
+      <div class="grid">
+        <div class="card">
+          <h3>修改外观尺寸</h3>
+          <ul>
+            <li>改 property，例如 <code>body_length</code>、<code>wheel_radius</code>。</li>
+            <li>确认 visual 和 collision 是否仍然一致。</li>
+            <li>必要时重新计算惯量或质量。</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>修改轮子控制</h3>
+          <ul>
+            <li>URDF joint 名称要和 <code>&lt;ros2_control&gt;</code> 中一致。</li>
+            <li>YAML 中 <code>wheel_velocity_controller.joints</code> 要同步。</li>
+            <li>速度限制来自 <code>wheel_velocity_limit</code>。</li>
+            <li>如果把车轮改为挂在 motor link 下，wheel joint 的 <code>origin</code> 要改成相对于 motor link 的坐标。</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>修改 IMU</h3>
+          <ul>
+            <li>Gazebo sensor 名称和 <code>ros2_control</code> sensor 名称保持一致。</li>
+            <li><code>frame_name</code> 和 <code>frame_id</code> 建议都使用 <code>imu_link</code>。</li>
+            <li>根据控制算法需要调整 <code>update_rate</code> 和噪声。</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>修改 Gazebo 物理表现</h3>
+          <ul>
+            <li>轮胎打滑优先看 <code>mu1</code> 和 <code>mu2</code>。</li>
+            <li>接触抖动优先看 <code>kp</code>、<code>kd</code>、<code>maxVel</code>。</li>
+            <li>平衡车倒得过快或过慢，要检查质量、质心和惯量。</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>快速验证命令</h3>
+      <pre><code># 检查 xacro 能否展开
+ros2 run xacro xacro src/balance_car_description/urdf/two_wheel_balance_65mm.urdf.xacro
+
+# 启动 Gazebo 仿真
+ros2 launch balance_car_description gazebo.launch.py
+
+# 查看控制器
+ros2 control list_controllers
+
+# 查看硬件接口
+ros2 control list_hardware_interfaces</code></pre>
+
+      <p class="muted">
+        文档对应的主要文件：
+        <code>src/balance_car_description/urdf/two_wheel_balance_65mm.urdf.xacro</code>、
+        <code>src/balance_car_description/launch/gazebo.launch.py</code>、
+        <code>src/balance_car_description/config/ros2_control_balance_65mm.yaml</code>。
+      </p>
+    </section>
+  </main>
+</body>
+</html>

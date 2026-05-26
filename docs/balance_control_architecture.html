@@ -1,0 +1,1231 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>两轮自平衡小车控制架构设计</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #667085;
+      --line: #d8dee9;
+      --blue: #2563eb;
+      --green: #0f766e;
+      --orange: #b45309;
+      --red: #b91c1c;
+      --purple: #6d28d9;
+      --code-bg: #111827;
+      --code-ink: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.65;
+    }
+
+    header {
+      background: linear-gradient(135deg, #0f172a, #1d4ed8);
+      color: white;
+      padding: 46px 24px;
+    }
+
+    header .wrap,
+    main {
+      max-width: 1160px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.2;
+    }
+
+    header p {
+      max-width: 900px;
+      margin: 0;
+      color: #dbeafe;
+      font-size: 18px;
+    }
+
+    main {
+      padding: 28px 20px 56px;
+    }
+
+    section,
+    nav,
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 28px rgb(15 23 42 / 6%);
+    }
+
+    section,
+    nav {
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 25px;
+    }
+
+    h3 {
+      margin: 22px 0 10px;
+      font-size: 19px;
+    }
+
+    p {
+      margin: 10px 0;
+    }
+
+    code {
+      border-radius: 6px;
+      background: #eef2ff;
+      color: #3730a3;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow: auto;
+      border-radius: 12px;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      padding: 16px;
+      line-height: 1.5;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+    }
+
+    ul,
+    ol {
+      padding-left: 1.35rem;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc a {
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #f8fafc;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      padding: 16px;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .tag {
+      display: inline-block;
+      margin: 4px 6px 4px 0;
+      border-radius: 999px;
+      background: #e0f2fe;
+      color: #075985;
+      padding: 3px 10px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .tag.green {
+      background: #ccfbf1;
+      color: #115e59;
+    }
+
+    .tag.orange {
+      background: #ffedd5;
+      color: #9a3412;
+    }
+
+    .tag.purple {
+      background: #ede9fe;
+      color: #5b21b6;
+    }
+
+    .note {
+      border-left: 5px solid var(--blue);
+      background: #eff6ff;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #1e3a8a;
+    }
+
+    .warning {
+      border-left: 5px solid var(--orange);
+      background: #fff7ed;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #7c2d12;
+    }
+
+    .danger {
+      border-left: 5px solid var(--red);
+      background: #fef2f2;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #7f1d1d;
+    }
+
+    .flow {
+      display: grid;
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .flow-step {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #f8fafc;
+      padding: 14px 16px;
+    }
+
+    .flow-step::after {
+      content: "↓";
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .flow-step:last-child::after {
+      content: "";
+      margin: 0;
+    }
+
+    .flow-step strong {
+      color: var(--green);
+    }
+
+    .diagram {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    .box {
+      border: 2px solid #c7d2fe;
+      border-radius: 14px;
+      background: #f8fafc;
+      padding: 14px;
+      min-height: 132px;
+    }
+
+    .box h3 {
+      margin-top: 0;
+      color: var(--purple);
+    }
+
+    .box p {
+      margin-bottom: 0;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f1f5f9;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>两轮自平衡小车控制架构设计</h1>
+      <p>
+        当前项目已经具备 Gazebo 模型、IMU、关节状态反馈，以及
+        <code>/wheel_velocity_controller/commands</code> 左右轮速度入口。
+        下一步不是先追求复杂算法，而是先搭出清晰的闭环控制架构：读取姿态，估计车身倾角，计算左右轮角速度，让轮子把车身“接住”。
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <nav aria-label="页面目录">
+      <h2>目录</h2>
+      <ul class="toc">
+        <li><a href="#goal">目标和已知条件</a></li>
+        <li><a href="#principle">平衡原理</a></li>
+        <li><a href="#imu-debug-world">IMU 调试 world</a></li>
+        <li><a href="#runtime">运行时闭环</a></li>
+        <li><a href="#package">代码包架构</a></li>
+        <li><a href="#node">控制节点内部结构</a></li>
+        <li><a href="#topics">ROS 接口设计</a></li>
+        <li><a href="#algorithm">控制算法分层</a></li>
+        <li><a href="#debug-code">IMU 与 PID 调试代码</a></li>
+        <li><a href="#safety">安全和调参</a></li>
+        <li><a href="#roadmap">实施路线</a></li>
+      </ul>
+    </nav>
+
+    <section id="goal">
+      <h2>目标和已知条件</h2>
+      <p>
+        现阶段的目标是让小车在仿真中从轻微倾斜状态恢复到接近竖直，并能在扰动后继续保持平衡。
+        已经确认的能力是：向 <code>/wheel_velocity_controller/commands</code>
+        发布 <code>std_msgs/msg/Float64MultiArray</code>，可以让左右轮转动。
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <h3>已有输入</h3>
+          <p>IMU 和关节状态已经可作为反馈源。</p>
+          <span class="tag">/imu/data</span>
+          <span class="tag">/imu_sensor_broadcaster/imu</span>
+          <span class="tag">/joint_states</span>
+        </div>
+
+        <div class="card">
+          <h3>已有输出</h3>
+          <p>左右轮角速度命令已经能进入 Gazebo 物理仿真。</p>
+          <span class="tag green">/wheel_velocity_controller/commands</span>
+          <span class="tag green">Float64MultiArray</span>
+        </div>
+
+        <div class="card">
+          <h3>关键约束</h3>
+          <p>URDF 中轮子速度限制为 <code>35 rad/s</code>，控制器更新频率为 <code>200 Hz</code>，IMU 更新频率为 <code>250 Hz</code>。</p>
+          <span class="tag orange">速度限幅</span>
+          <span class="tag orange">实时性</span>
+        </div>
+      </div>
+
+      <p class="note">
+        坐标约定已经在模型中定义为 <code>x</code> 向前、<code>y</code> 向左、<code>z</code> 向上。
+        小车前后倒下时，主要姿态量是绕 <code>y</code> 轴的 pitch；控制轮子时，也是通过左右轮同向转动让轮轴追上车身重心。
+      </p>
+    </section>
+
+    <section id="principle">
+      <h2>平衡原理</h2>
+      <p>
+        两轮自平衡车可以近似看成“倒立摆 + 可移动轮轴”。当车身向前倾时，轮子必须向前加速，
+        让轮轴移动到重心下方；当车身向后倾时，轮子必须向后加速。控制的本质不是“让轮子停住”，
+        而是通过轮子运动不断调整底部支撑点。
+      </p>
+
+      <div class="flow">
+        <div class="flow-step">
+          <strong>1. IMU 测出车身倾角和角速度</strong><br>
+          从 IMU orientation 得到 pitch，从 angular_velocity.y 得到 pitch rate。
+        </div>
+
+        <div class="flow-step">
+          <strong>2. 控制器判断车身正在往哪边倒</strong><br>
+          如果 pitch 偏离竖直，控制器计算需要的轮子速度方向和大小。
+        </div>
+
+        <div class="flow-step">
+          <strong>3. 左右轮同向转动</strong><br>
+          平衡时左右轮通常给同一个速度值，例如 <code>[w, w]</code>，让车沿前后方向移动。
+        </div>
+
+        <div class="flow-step">
+          <strong>4. 物理反馈回到 IMU</strong><br>
+          Gazebo 更新车身姿态，IMU 再把新姿态反馈给控制器，形成闭环。
+        </div>
+      </div>
+
+      <p class="warning">
+        小车要保持平衡，轮子一定会来回移动。真正稳定后，车身 pitch 接近 0，
+        但轮子位置不一定固定在原地。后续如果要“原地平衡”，还需要增加位置或速度外环。
+      </p>
+    </section>
+
+    <section id="imu-debug-world">
+      <h2>IMU 调试 world</h2>
+      <p>
+        两轮平衡车在没有控制器时是天然不稳定的倒立摆，加载进 Gazebo 后会很快倒下。
+        如果直接在自由跌倒过程中验证 IMU，orientation、angular velocity 和接触碰撞都会混在一起，
+        很难判断 pitch 计算是否正确。因此新增一个专用 world：
+        <code>src/balance_car_description/worlds/imu_debug.world</code>。
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <h3>前后 pitch 支撑</h3>
+          <p>
+            <code>front_pitch_support</code> 和 <code>rear_pitch_support</code>
+            放在车体前后，限制车身加载后立刻前后倒下。
+          </p>
+          <span class="tag orange">临时支撑</span>
+          <span class="tag orange">只用于调试</span>
+        </div>
+
+        <div class="card">
+          <h3>左右轮低轨</h3>
+          <p>
+            <code>left_wheel_rail</code> 和 <code>right_wheel_rail</code>
+            限制轮子横向跑出支撑区域，但不承担正式平衡控制职责。
+          </p>
+          <span class="tag orange">防止跑偏</span>
+          <span class="tag orange">保留轮子接触</span>
+        </div>
+
+        <div class="card">
+          <h3>验证目标</h3>
+          <p>
+            在支撑环境里先确认竖直姿态 pitch 接近 0、前倾/后倾符号正确、
+            <code>angular_velocity.y</code> 与 pitch 变化方向一致。
+          </p>
+          <span class="tag green">先验姿态</span>
+          <span class="tag green">符号校验</span>
+        </div>
+      </div>
+
+      <h3>启动调试 world</h3>
+      <pre><code>ros2 launch balance_car_description gazebo.launch.py \
+  world:=/home/lcoit/ros2_projects/self_balance_car_class/two_wheel_self_balance_car/src/balance_car_description/worlds/imu_debug.world</code></pre>
+
+      <p>
+        如果使用安装后的 share 路径，需要先重新构建，因为 <code>imu_debug.world</code> 是新增文件：
+      </p>
+
+      <pre><code>colcon build --packages-select balance_car_description
+source install/setup.bash</code></pre>
+
+      <h3>支撑结构核心片段</h3>
+      <p>
+        下面是 world 中前后支撑块的核心结构。它们是 <code>static</code> 模型，不随物理仿真移动：
+      </p>
+
+      <pre><code>&lt;model name="front_pitch_support"&gt;
+  &lt;static&gt;true&lt;/static&gt;
+  &lt;pose&gt;0.055 0 0.105 0 0 0&lt;/pose&gt;
+  &lt;link name="link"&gt;
+    &lt;visual name="visual"&gt;
+      &lt;geometry&gt;
+        &lt;box&gt;
+          &lt;size&gt;0.012 0.100 0.130&lt;/size&gt;
+        &lt;/box&gt;
+      &lt;/geometry&gt;
+    &lt;/visual&gt;
+    &lt;collision name="collision"&gt;
+      &lt;geometry&gt;
+        &lt;box&gt;
+          &lt;size&gt;0.012 0.100 0.130&lt;/size&gt;
+        &lt;/box&gt;
+      &lt;/geometry&gt;
+    &lt;/collision&gt;
+  &lt;/link&gt;
+&lt;/model&gt;</code></pre>
+
+      <p class="warning">
+        这个 world 只用于验证 IMU 和控制符号，不代表真实机器人结构。
+        正式平衡控制验证时要切回 <code>empty.world</code>，否则支撑块会掩盖控制器问题。
+      </p>
+    </section>
+
+    <section id="runtime">
+      <h2>运行时闭环</h2>
+      <p>
+        新增的平衡控制代码应当作为 ROS2 节点接入已有链路。它不直接控制 Gazebo joint，
+        而是继续复用当前已经验证过的 <code>wheel_velocity_controller</code>。
+      </p>
+
+      <div class="diagram">
+        <div class="box">
+          <h3>Gazebo 物理世界</h3>
+          <p>负责车身运动、轮地接触、IMU 传感器、关节状态。</p>
+        </div>
+
+        <div class="box">
+          <h3>状态反馈</h3>
+          <p><code>/imu/data</code> 或 <code>/imu_sensor_broadcaster/imu</code> 提供姿态；<code>/joint_states</code> 提供轮子速度和位置。</p>
+        </div>
+
+        <div class="box">
+          <h3>balance_controller</h3>
+          <p>估计 pitch，执行平衡算法，输出左右轮目标角速度。</p>
+        </div>
+
+        <div class="box">
+          <h3>wheel_velocity_controller</h3>
+          <p>接收 <code>Float64MultiArray</code>，写入左右轮 velocity command interface。</p>
+        </div>
+      </div>
+
+      <pre><code>Gazebo / IMU / joint states
+        ↓
+balance_controller_node
+        ↓
+/wheel_velocity_controller/commands
+        ↓
+gazebo_ros2_control
+        ↓
+Gazebo wheel joints</code></pre>
+    </section>
+
+    <section id="package">
+      <h2>代码包架构</h2>
+      <p>
+        建议新增一个独立控制包，不把控制逻辑塞进 <code>balance_car_description</code>。
+        description 包继续只负责模型、Gazebo、RViz 和 ros2_control 配置；控制包负责状态估计、控制算法和命令发布。
+      </p>
+
+      <pre><code>src/
+  balance_car_description/
+    urdf/
+    config/
+    launch/
+    worlds/
+
+  balance_car_control/
+    package.xml
+    setup.py
+    resource/balance_car_control
+    balance_car_control/
+      __init__.py
+      imu_debug_node.py
+      pid_debug_node.py
+      balance_controller_node.py
+      state_estimator.py
+      pid.py
+      wheel_mixer.py
+      safety.py
+    config/
+      balance_controller.yaml
+    launch/
+      balance_control.launch.py</code></pre>
+
+      <div class="grid">
+        <div class="card">
+          <h3><code>balance_controller_node.py</code></h3>
+          <p>ROS2 节点入口，订阅 IMU 和 joint states，定时运行控制循环，发布左右轮速度。</p>
+          <span class="tag purple">节点入口</span>
+        </div>
+
+        <div class="card">
+          <h3><code>imu_debug_node.py</code></h3>
+          <p>只订阅 IMU，计算 roll/pitch/yaw，发布调试数组并打印符号，专门用于支撑 world 中的姿态验证。</p>
+          <span class="tag purple">IMU 校验</span>
+        </div>
+
+        <div class="card">
+          <h3><code>pid_debug_node.py</code></h3>
+          <p>在 IMU 正确后接入 PD/PID 输出，以很小速度限幅测试轮子追车体的方向。</p>
+          <span class="tag purple">PID 调试</span>
+        </div>
+
+        <div class="card">
+          <h3><code>state_estimator.py</code></h3>
+          <p>把 IMU quaternion、角速度和轮速整理成控制状态，例如 pitch、pitch_rate、wheel_velocity。</p>
+          <span class="tag purple">状态估计</span>
+        </div>
+
+        <div class="card">
+          <h3><code>pid.py</code></h3>
+          <p>先实现 PID/PD 控制器，后续可以替换成 LQR，但 ROS 接口保持不变。</p>
+          <span class="tag purple">控制算法</span>
+        </div>
+
+        <div class="card">
+          <h3><code>wheel_mixer.py</code></h3>
+          <p>把“平衡前后速度”和“转向速度”混合成左右轮角速度。</p>
+          <span class="tag purple">左右轮分配</span>
+        </div>
+
+        <div class="card">
+          <h3><code>safety.py</code></h3>
+          <p>处理姿态过大、传感器超时、速度限幅、急停等保护逻辑。</p>
+          <span class="tag purple">安全保护</span>
+        </div>
+
+        <div class="card">
+          <h3><code>balance_controller.yaml</code></h3>
+          <p>集中保存控制频率、话题名、PID 参数、限幅和安全阈值。</p>
+          <span class="tag purple">参数配置</span>
+        </div>
+      </div>
+
+      <p class="note">
+        第一版建议用 Python <code>rclpy</code> 实现，便于调参与打印日志。等算法稳定后，如果需要更高实时性，再考虑迁移到 C++ 或 ros2_control 自定义 controller。
+      </p>
+    </section>
+
+    <section id="node">
+      <h2>控制节点内部结构</h2>
+      <p>
+        第一版可以只有一个 ROS2 节点，但节点内部要分层。这样既方便调试，又避免一开始就拆成太多 ROS 节点造成复杂度。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>层</th>
+            <th>职责</th>
+            <th>输入</th>
+            <th>输出</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>ROS I/O 层</td>
+            <td>订阅、发布、参数加载、定时器</td>
+            <td>IMU、joint states、参数</td>
+            <td>轮速命令、调试状态</td>
+          </tr>
+          <tr>
+            <td>状态估计层</td>
+            <td>计算 pitch、pitch_rate、轮子平均速度</td>
+            <td>IMU quaternion、angular velocity、轮速</td>
+            <td><code>BalanceState</code></td>
+          </tr>
+          <tr>
+            <td>控制算法层</td>
+            <td>根据倾角误差计算前后方向轮速</td>
+            <td><code>pitch</code>、<code>pitch_rate</code>、目标速度</td>
+            <td><code>balance_wheel_velocity</code></td>
+          </tr>
+          <tr>
+            <td>混控层</td>
+            <td>合成左右轮速度，支持未来转向</td>
+            <td>平衡速度、转向速度</td>
+            <td><code>left_w</code>、<code>right_w</code></td>
+          </tr>
+          <tr>
+            <td>安全层</td>
+            <td>限幅、超时、跌倒停机、急停</td>
+            <td>状态和命令</td>
+            <td>最终安全命令</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <pre><code>timer_callback():
+  state = estimator.update(latest_imu, latest_joint_states)
+  raw_balance_w = controller.compute(state)
+  left_w, right_w = mixer.mix(raw_balance_w, turn_w)
+  safe_left_w, safe_right_w = safety.filter(state, left_w, right_w)
+  publish(Float64MultiArray(data=[safe_left_w, safe_right_w]))</code></pre>
+    </section>
+
+    <section id="topics">
+      <h2>ROS 接口设计</h2>
+      <p>
+        第一版只需要订阅已有反馈话题，并发布现有轮速命令。调试话题建议从一开始保留，
+        因为平衡控制主要靠观察 pitch、pitch_rate 和输出速度来调参。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>方向</th>
+            <th>话题</th>
+            <th>类型</th>
+            <th>用途</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>订阅</td>
+            <td><code>/imu/data</code></td>
+            <td><code>sensor_msgs/msg/Imu</code></td>
+            <td>第一优先级 IMU 输入。也可以切换到 <code>/imu_sensor_broadcaster/imu</code>。</td>
+          </tr>
+          <tr>
+            <td>订阅</td>
+            <td><code>/joint_states</code></td>
+            <td><code>sensor_msgs/msg/JointState</code></td>
+            <td>读取左右轮速度和位置，用于速度外环、调试和状态判断。</td>
+          </tr>
+          <tr>
+            <td>发布</td>
+            <td><code>/wheel_velocity_controller/commands</code></td>
+            <td><code>std_msgs/msg/Float64MultiArray</code></td>
+            <td>发布左右轮角速度，顺序为 <code>[left_wheel_joint, right_wheel_joint]</code>。</td>
+          </tr>
+          <tr>
+            <td>发布</td>
+            <td><code>/balance_controller/debug</code></td>
+            <td>建议先用 <code>std_msgs/msg/Float64MultiArray</code></td>
+            <td>输出 pitch、pitch_rate、控制量、限幅后的命令，便于画图调参。</td>
+          </tr>
+          <tr>
+            <td>可选订阅</td>
+            <td><code>/cmd_vel</code></td>
+            <td><code>geometry_msgs/msg/Twist</code></td>
+            <td>未来加入遥控目标速度和转向，不作为第一阶段必要功能。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="warning">
+        当前输出单位是轮子关节角速度 <code>rad/s</code>，不是底盘线速度。
+        车轮半径为 <code>0.0325 m</code>，所以可用 <code>wheel_w = body_v / 0.0325</code>
+        在底盘速度和轮子角速度之间换算。
+      </p>
+    </section>
+
+    <section id="algorithm">
+      <h2>控制算法分层</h2>
+      <p>
+        建议按三个阶段推进：先能扶住，再能少跑，再能听从速度命令。每个阶段保留同一套代码接口，
+        只是逐步打开更多控制项。
+      </p>
+
+      <h3>阶段 1：只做姿态 PD</h3>
+      <pre><code>balance_w = kp_pitch * pitch_error
+          + kd_pitch * pitch_rate</code></pre>
+      <p>
+        这里 <code>pitch_error = pitch - pitch_target</code>，<code>pitch_target</code> 初始为 0。
+        实际符号需要通过小幅测试确定：如果车向前倒，轮子却向后跑，就把整体输出符号反过来。
+      </p>
+
+      <h3>阶段 2：加入轮速阻尼</h3>
+      <pre><code>balance_w = kp_pitch * pitch_error
+          + kd_pitch * pitch_rate
+          + kv_wheel * average_wheel_velocity</code></pre>
+      <p>
+        轮速项用来减少小车越跑越远的问题，相当于给底盘速度加阻尼。
+      </p>
+
+      <h3>阶段 3：加入位置或速度外环</h3>
+      <pre><code>pitch_target = velocity_pid.compute(target_velocity - measured_velocity)
+balance_w = balance_pid.compute(pitch_target - pitch, pitch_rate)</code></pre>
+      <p>
+        这个阶段才适合接入 <code>/cmd_vel</code>。外环不要直接控制轮子，而是给内环一个很小的目标倾角，
+        让车身通过“略微前倾/后倾”实现加速和减速。
+      </p>
+
+      <p class="note">
+        如果以后想走更系统的路线，可以把状态定义成
+        <code>[pitch, pitch_rate, wheel_position, wheel_velocity]</code>，再用 LQR 求控制增益。
+        但第一版用 PD/PID 更适合快速理解方向、符号、限幅和传感器反馈。
+      </p>
+    </section>
+
+    <section id="debug-code">
+      <h2>IMU 与 PID 调试代码</h2>
+      <p>
+        这一节给出第一版可以直接写入 <code>balance_car_control</code> 包的代码骨架。
+        推荐先运行 <code>imu_debug_node.py</code>，确认 pitch 符号和 <code>angular_velocity.y</code> 正确；
+        再运行 <code>pid_debug_node.py</code>，用很小的速度限幅确认轮子输出方向。
+      </p>
+
+      <h3><code>imu_debug_node.py</code></h3>
+      <p>
+        这个节点只做 IMU 姿态解算，不发轮子命令。它把 quaternion 转成 roll、pitch、yaw，
+        同时发布 <code>/balance_controller/imu_debug</code>，数组顺序为
+        <code>[roll, pitch, yaw, angular_velocity.x, angular_velocity.y, angular_velocity.z]</code>。
+      </p>
+
+      <pre><code>import math
+
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Imu
+from std_msgs.msg import Float64MultiArray
+
+
+def quaternion_to_euler(x, y, z, w):
+    sinr_cosp = 2.0 * (w * x + y * z)
+    cosr_cosp = 1.0 - 2.0 * (x * x + y * y)
+    roll = math.atan2(sinr_cosp, cosr_cosp)
+
+    sinp = 2.0 * (w * y - z * x)
+    if abs(sinp) &gt;= 1.0:
+        pitch = math.copysign(math.pi / 2.0, sinp)
+    else:
+        pitch = math.asin(sinp)
+
+    siny_cosp = 2.0 * (w * z + x * y)
+    cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
+    yaw = math.atan2(siny_cosp, cosy_cosp)
+
+    return roll, pitch, yaw
+
+
+class ImuDebugNode(Node):
+    def __init__(self):
+        super().__init__("imu_debug_node")
+        self.declare_parameter("imu_topic", "/imu/data")
+        self.declare_parameter("print_degrees", True)
+        self.declare_parameter("log_period_sec", 0.25)
+
+        imu_topic = self.get_parameter("imu_topic").value
+        self.print_degrees = self.get_parameter("print_degrees").value
+        self.log_period_sec = float(self.get_parameter("log_period_sec").value)
+
+        self.last_log_time = self.get_clock().now()
+        self.debug_pub = self.create_publisher(
+            Float64MultiArray,
+            "/balance_controller/imu_debug",
+            10,
+        )
+        self.create_subscription(Imu, imu_topic, self.on_imu, 10)
+
+        self.get_logger().info(f"Listening IMU topic: {imu_topic}")
+
+    def on_imu(self, msg):
+        q = msg.orientation
+        roll, pitch, yaw = quaternion_to_euler(q.x, q.y, q.z, q.w)
+
+        av = msg.angular_velocity
+        self.debug_pub.publish(Float64MultiArray(data=[
+            roll,
+            pitch,
+            yaw,
+            av.x,
+            av.y,
+            av.z,
+        ]))
+
+        now = self.get_clock().now()
+        elapsed = (now - self.last_log_time).nanoseconds / 1e9
+        if elapsed &lt; self.log_period_sec:
+            return
+
+        self.last_log_time = now
+        if self.print_degrees:
+            self.get_logger().info(
+                "roll={:.2f} deg, pitch={:.2f} deg, yaw={:.2f} deg, "
+                "gyro_y={:.4f} rad/s".format(
+                    math.degrees(roll),
+                    math.degrees(pitch),
+                    math.degrees(yaw),
+                    av.y,
+                )
+            )
+        else:
+            self.get_logger().info(
+                "roll={:.4f}, pitch={:.4f}, yaw={:.4f}, gyro_y={:.4f}".format(
+                    roll,
+                    pitch,
+                    yaw,
+                    av.y,
+                )
+            )
+
+
+def main():
+    rclpy.init()
+    node = ImuDebugNode()
+    try:
+        rclpy.spin(node)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()</code></pre>
+
+      <h3>IMU 调试运行方式</h3>
+      <pre><code># 终端 1：启动带支撑的 Gazebo world
+ros2 launch balance_car_description gazebo.launch.py \
+  world:=/home/lcoit/ros2_projects/self_balance_car_class/two_wheel_self_balance_car/src/balance_car_description/worlds/imu_debug.world
+
+# 终端 2：运行 IMU 调试节点
+ros2 run balance_car_control imu_debug_node
+
+# 终端 3：画 pitch 和 gyro_y
+rqt_plot /balance_controller/imu_debug/data[1] \
+         /balance_controller/imu_debug/data[4]</code></pre>
+
+      <p class="note">
+        如果竖直时 pitch 不是 0 附近，先不要调 PID。先确认 IMU frame、URDF 中 <code>imu_joint</code>
+        的安装方向、以及 quaternion 转 euler 的轴定义是否和模型坐标一致。
+      </p>
+
+      <h3><code>pid.py</code></h3>
+      <p>
+        PID 工具类需要包含积分限幅、输出限幅和 reset。第一阶段可以只用 P 和 D，
+        但把 I 项接口保留，后续做速度外环或位置外环时会用到。
+      </p>
+
+      <pre><code>from dataclasses import dataclass
+from typing import Optional
+
+
+@dataclass
+class PIDConfig:
+    kp: float = 0.0
+    ki: float = 0.0
+    kd: float = 0.0
+    integral_limit: Optional[float] = None
+    output_limit: Optional[float] = None
+
+
+class PID:
+    def __init__(self, config: PIDConfig):
+        self.config = config
+        self.integral = 0.0
+        self.previous_error = None
+
+    def reset(self):
+        self.integral = 0.0
+        self.previous_error = None
+
+    def compute(self, error, dt, measured_rate=None):
+        if dt &lt;= 0.0:
+            return 0.0
+
+        p_term = self.config.kp * error
+
+        self.integral += error * dt
+        if self.config.integral_limit is not None:
+            limit = abs(self.config.integral_limit)
+            self.integral = max(-limit, min(limit, self.integral))
+        i_term = self.config.ki * self.integral
+
+        if measured_rate is not None:
+            d_error = -measured_rate
+        elif self.previous_error is None:
+            d_error = 0.0
+        else:
+            d_error = (error - self.previous_error) / dt
+        d_term = self.config.kd * d_error
+
+        self.previous_error = error
+        output = p_term + i_term + d_term
+
+        if self.config.output_limit is not None:
+            limit = abs(self.config.output_limit)
+            output = max(-limit, min(limit, output))
+
+        return output</code></pre>
+
+      <h3><code>pid_debug_node.py</code></h3>
+      <p>
+        这个节点是最小闭环调试版本：订阅 IMU，计算 pitch，使用 PD 输出一个左右轮同向速度。
+        为了安全，默认 <code>enabled</code> 为 <code>false</code>，确认 IMU 正确后再通过参数打开。
+      </p>
+
+      <pre><code>import math
+
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Imu
+from std_msgs.msg import Float64MultiArray
+
+from balance_car_control.pid import PID, PIDConfig
+from balance_car_control.imu_debug_node import quaternion_to_euler
+
+
+class PidDebugNode(Node):
+    def __init__(self):
+        super().__init__("pid_debug_node")
+
+        self.declare_parameter("imu_topic", "/imu/data")
+        self.declare_parameter("command_topic", "/wheel_velocity_controller/commands")
+        self.declare_parameter("debug_topic", "/balance_controller/pid_debug")
+        self.declare_parameter("control_rate", 100.0)
+        self.declare_parameter("enabled", False)
+        self.declare_parameter("output_sign", 1.0)
+        self.declare_parameter("pitch_target", 0.0)
+        self.declare_parameter("kp_pitch", 2.0)
+        self.declare_parameter("kd_pitch", 0.15)
+        self.declare_parameter("max_wheel_velocity", 3.0)
+        self.declare_parameter("fall_angle_rad", 0.61)
+        self.declare_parameter("imu_timeout_sec", 0.1)
+
+        self.enabled = bool(self.get_parameter("enabled").value)
+        self.output_sign = float(self.get_parameter("output_sign").value)
+        self.pitch_target = float(self.get_parameter("pitch_target").value)
+        self.max_wheel_velocity = float(self.get_parameter("max_wheel_velocity").value)
+        self.fall_angle_rad = float(self.get_parameter("fall_angle_rad").value)
+        self.imu_timeout_sec = float(self.get_parameter("imu_timeout_sec").value)
+
+        kp = float(self.get_parameter("kp_pitch").value)
+        kd = float(self.get_parameter("kd_pitch").value)
+        self.pid = PID(PIDConfig(
+            kp=kp,
+            ki=0.0,
+            kd=kd,
+            output_limit=self.max_wheel_velocity,
+        ))
+
+        imu_topic = self.get_parameter("imu_topic").value
+        command_topic = self.get_parameter("command_topic").value
+        debug_topic = self.get_parameter("debug_topic").value
+
+        self.latest_pitch = None
+        self.latest_pitch_rate = None
+        self.last_imu_time = None
+        self.last_control_time = self.get_clock().now()
+
+        self.command_pub = self.create_publisher(Float64MultiArray, command_topic, 10)
+        self.debug_pub = self.create_publisher(Float64MultiArray, debug_topic, 10)
+        self.create_subscription(Imu, imu_topic, self.on_imu, 10)
+
+        control_rate = float(self.get_parameter("control_rate").value)
+        self.create_timer(1.0 / control_rate, self.on_timer)
+
+        self.get_logger().warn(
+            "PID debug node started. enabled={} max_wheel_velocity={:.2f} rad/s".format(
+                self.enabled,
+                self.max_wheel_velocity,
+            )
+        )
+
+    def on_imu(self, msg):
+        q = msg.orientation
+        _, pitch, _ = quaternion_to_euler(q.x, q.y, q.z, q.w)
+        self.latest_pitch = pitch
+        self.latest_pitch_rate = msg.angular_velocity.y
+        self.last_imu_time = self.get_clock().now()
+
+    def publish_wheel_command(self, wheel_velocity):
+        self.command_pub.publish(Float64MultiArray(data=[
+            wheel_velocity,
+            wheel_velocity,
+        ]))
+
+    def stop_wheels(self):
+        self.publish_wheel_command(0.0)
+        self.pid.reset()
+
+    def on_timer(self):
+        now = self.get_clock().now()
+        dt = (now - self.last_control_time).nanoseconds / 1e9
+        self.last_control_time = now
+
+        if self.latest_pitch is None or self.last_imu_time is None:
+            self.stop_wheels()
+            return
+
+        imu_age = (now - self.last_imu_time).nanoseconds / 1e9
+        if imu_age &gt; self.imu_timeout_sec:
+            self.get_logger().warn("IMU timeout, stopping wheels", throttle_duration_sec=1.0)
+            self.stop_wheels()
+            return
+
+        pitch = self.latest_pitch
+        pitch_rate = self.latest_pitch_rate or 0.0
+        pitch_error = pitch - self.pitch_target
+
+        if abs(pitch) &gt; self.fall_angle_rad:
+            self.get_logger().warn(
+                "Fall angle reached: pitch={:.2f} deg".format(math.degrees(pitch)),
+                throttle_duration_sec=1.0,
+            )
+            self.stop_wheels()
+            return
+
+        raw_output = self.pid.compute(
+            error=pitch_error,
+            dt=dt,
+            measured_rate=pitch_rate,
+        )
+        wheel_velocity = self.output_sign * raw_output
+        wheel_velocity = max(
+            -self.max_wheel_velocity,
+            min(self.max_wheel_velocity, wheel_velocity),
+        )
+
+        if self.enabled:
+            self.publish_wheel_command(wheel_velocity)
+        else:
+            self.stop_wheels()
+
+        self.debug_pub.publish(Float64MultiArray(data=[
+            pitch,
+            pitch_rate,
+            pitch_error,
+            raw_output,
+            wheel_velocity,
+            1.0 if self.enabled else 0.0,
+        ]))
+
+
+def main():
+    rclpy.init()
+    node = PidDebugNode()
+    try:
+        rclpy.spin(node)
+    finally:
+        node.stop_wheels()
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()</code></pre>
+
+      <h3>PID 调试参数文件</h3>
+      <pre><code>pid_debug_node:
+  ros__parameters:
+    use_sim_time: true
+    imu_topic: /imu/data
+    command_topic: /wheel_velocity_controller/commands
+    debug_topic: /balance_controller/pid_debug
+    control_rate: 100.0
+    enabled: false
+    output_sign: 1.0
+    pitch_target: 0.0
+    kp_pitch: 2.0
+    kd_pitch: 0.15
+    max_wheel_velocity: 3.0
+    fall_angle_rad: 0.61
+    imu_timeout_sec: 0.1</code></pre>
+
+      <h3>PID 调试运行方式</h3>
+      <pre><code># 先只观察 debug 输出，不让轮子动
+ros2 run balance_car_control pid_debug_node \
+  --ros-args --params-file src/balance_car_control/config/pid_debug.yaml
+
+# 确认 IMU pitch 正确后，再打开输出
+ros2 run balance_car_control pid_debug_node \
+  --ros-args \
+  --params-file src/balance_car_control/config/pid_debug.yaml \
+  -p enabled:=true
+
+# 如果车向前倒时轮子反向跑，只反转这个参数
+ros2 run balance_car_control pid_debug_node \
+  --ros-args \
+  --params-file src/balance_car_control/config/pid_debug.yaml \
+  -p enabled:=true \
+  -p output_sign:=-1.0
+
+# 观察 pitch、pitch_rate、输出速度
+rqt_plot /balance_controller/pid_debug/data[0] \
+         /balance_controller/pid_debug/data[1] \
+         /balance_controller/pid_debug/data[4]</code></pre>
+
+      <p class="danger">
+        第一次打开 <code>enabled:=true</code> 时，不要在自由倒立场景里直接用大增益。
+        建议先在 <code>imu_debug.world</code> 里确认输出方向，再切换回 <code>empty.world</code>
+        做真正的平衡控制。
+      </p>
+    </section>
+
+    <section id="safety">
+      <h2>安全和调参</h2>
+      <p>
+        平衡控制很容易因为参数、符号或传感器延迟导致轮子瞬间打满，所以安全层必须从第一版就有。
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <h3>速度限幅</h3>
+          <p>命令限制在 URDF 的 <code>[-35, 35] rad/s</code> 内，第一轮调试建议先限制到 <code>[-8, 8]</code>。</p>
+          <span class="tag orange">max_wheel_velocity</span>
+        </div>
+
+        <div class="card">
+          <h3>倾角保护</h3>
+          <p>如果 <code>|pitch|</code> 超过例如 <code>35 deg</code>，认为已经跌倒，停止输出或进入 recovery 模式。</p>
+          <span class="tag orange">fall_angle</span>
+        </div>
+
+        <div class="card">
+          <h3>传感器超时</h3>
+          <p>如果 IMU 超过 <code>0.1 s</code> 没有更新，立即发布 <code>[0, 0]</code> 并报警。</p>
+          <span class="tag orange">imu_timeout</span>
+        </div>
+
+        <div class="card">
+          <h3>输出斜率限制</h3>
+          <p>限制相邻周期速度变化，避免仿真中轮地接触瞬间打滑或数值震荡。</p>
+          <span class="tag orange">accel_limit</span>
+        </div>
+      </div>
+
+      <p class="danger">
+        调参顺序建议固定：先确认 pitch 符号，再确认轮子命令方向，然后只调很小的 <code>kp_pitch</code>，
+        最后慢慢加入 <code>kd_pitch</code>。不要一开始就同时调多个参数。
+      </p>
+
+      <pre><code>balance_controller:
+  ros__parameters:
+    control_rate: 200.0
+    imu_topic: /imu/data
+    joint_states_topic: /joint_states
+    command_topic: /wheel_velocity_controller/commands
+    pitch_target: 0.0
+    kp_pitch: 6.0
+    kd_pitch: 0.4
+    kv_wheel: 0.0
+    max_wheel_velocity: 8.0
+    max_wheel_accel: 80.0
+    fall_angle_rad: 0.61
+    imu_timeout_sec: 0.1</code></pre>
+    </section>
+
+    <section id="roadmap">
+      <h2>实施路线</h2>
+      <ol>
+        <li>先用 <code>imu_debug.world</code> 加载临时支撑，避免小车一出生就倒下。</li>
+        <li>新增 <code>balance_car_control</code> 包，实现 <code>imu_debug_node.py</code>，确认节点时钟、IMU 话题和 pitch 符号正常。</li>
+        <li>使用 <code>rqt_plot</code> 观察 <code>/balance_controller/imu_debug</code>，确认竖直时 pitch 接近 0，前后倾倒方向符合预期。</li>
+        <li>加入 <code>pid.py</code> 和 <code>pid_debug_node.py</code>，默认 <code>enabled:=false</code>，先只看控制器计算出的输出。</li>
+        <li>在支撑 world 中打开 <code>enabled:=true</code>，把 <code>max_wheel_velocity</code> 限制到 <code>3 rad/s</code> 左右，确认轮子追车体方向。</li>
+        <li>如果车向前倒时轮子反向跑，只改 <code>output_sign</code>，不要同时改 PID 参数。</li>
+        <li>切回 <code>empty.world</code>，逐步增大 <code>kp_pitch</code>，再加入 <code>kd_pitch</code> 抑制震荡，最后加入轮速阻尼。</li>
+        <li>稳定后再接入 <code>/cmd_vel</code>，通过外环把目标速度变成目标倾角。</li>
+      </ol>
+
+      <p class="note">
+        这套架构的核心是保持接口稳定：上游读取 IMU 和关节状态，下游发布左右轮角速度。
+        控制算法可以从 PD 升级到 PID、LQR，甚至 ros2_control 自定义 controller，但不需要推翻整体数据流。
+      </p>
+    </section>
+  </main>
+</body>
+</html>

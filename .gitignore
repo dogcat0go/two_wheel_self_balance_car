@@ -1,0 +1,34 @@
+# ROS 2 / colcon workspace outputs
+/build/
+/install/
+/log/
+/.colcon/
+
+# Package-local CMake build artifacts
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/CTestTestfile.cmake
+**/Makefile
+**/compile_commands.json
+**/Testing/
+
+# Python cache and packaging artifacts
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+
+# Editor and OS noise
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Patch/merge leftovers
+*.orig
+*.rej
+
+# Local Cursor session history
+.specstory/

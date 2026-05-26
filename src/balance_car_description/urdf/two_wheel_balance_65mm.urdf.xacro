@@ -1,0 +1,447 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="two_wheel_balance_65mm">
+
+  <!--
+    Coordinate convention:
+      x forward, y left, z up.
+      base_link is placed at the midpoint of the wheel axle.
+      The wheel-ground contact plane is z = -wheel_radius when base_link z = 0.
+  -->
+
+  <!-- Wheel geometry: diameter 65 mm. -->
+  <xacro:property name="wheel_radius" value="0.0325"/>
+  <xacro:property name="wheel_diameter" value="${2.0 * wheel_radius}"/>
+  <xacro:property name="wheel_width" value="0.026"/>
+  <xacro:property name="wheel_mass" value="0.055"/>
+  <xacro:property name="wheel_separation" value="0.118"/>
+
+  <!-- Main body. Its center of mass is deliberately above the axle. -->
+  <xacro:property name="body_length" value="0.085"/>
+  <xacro:property name="body_width" value="0.054"/>
+  <xacro:property name="body_height" value="0.130"/>
+  <xacro:property name="body_mass" value="0.420"/>
+  <xacro:property name="body_com_z" value="0.075"/>
+
+  <!-- Internal components represented as separate fixed masses. -->
+  <xacro:property name="motor_radius" value="0.012"/>
+  <xacro:property name="motor_length" value="0.018"/>
+  <xacro:property name="motor_mass" value="0.055"/>
+  <xacro:property name="motor_y" value="${wheel_separation / 2.0 - wheel_width / 2.0 - motor_length / 2.0}"/>
+
+  <xacro:property name="battery_x" value="-0.010"/>
+  <xacro:property name="battery_z" value="0.035"/>
+  <xacro:property name="battery_length" value="0.052"/>
+  <xacro:property name="battery_width" value="0.034"/>
+  <xacro:property name="battery_height" value="0.018"/>
+  <xacro:property name="battery_mass" value="0.085"/>
+
+  <xacro:property name="board_x" value="0.008"/>
+  <xacro:property name="board_z" value="0.110"/>
+  <xacro:property name="board_length" value="0.055"/>
+  <xacro:property name="board_width" value="0.038"/>
+  <xacro:property name="board_height" value="0.006"/>
+  <xacro:property name="board_mass" value="0.025"/>
+
+  <xacro:property name="imu_x" value="0.010"/>
+  <xacro:property name="imu_z" value="0.138"/>
+  <xacro:property name="imu_length" value="0.018"/>
+  <xacro:property name="imu_width" value="0.018"/>
+  <xacro:property name="imu_height" value="0.006"/>
+  <xacro:property name="imu_mass" value="0.006"/>
+
+  <xacro:property name="wheel_effort_limit" value="2.5"/>
+  <xacro:property name="wheel_velocity_limit" value="35.0"/>
+  <xacro:property name="motor_gear_ratio" value="30.0"/>
+
+  <material name="body_gray">
+    <color rgba="0.45 0.47 0.50 1.0"/>
+  </material>
+  <material name="wheel_black">
+    <color rgba="0.02 0.02 0.02 1.0"/>
+  </material>
+  <material name="motor_dark">
+    <color rgba="0.12 0.12 0.14 1.0"/>
+  </material>
+  <material name="battery_blue">
+    <color rgba="0.05 0.20 0.75 1.0"/>
+  </material>
+  <material name="board_green">
+    <color rgba="0.05 0.45 0.15 1.0"/>
+  </material>
+  <material name="imu_orange">
+    <color rgba="1.00 0.50 0.05 1.0"/>
+  </material>
+
+  <xacro:macro name="box_inertial" params="mass x y z ox oy oz">
+    <inertial>
+      <origin xyz="${ox} ${oy} ${oz}" rpy="0 0 0"/>
+      <mass value="${mass}"/>
+      <inertia
+        ixx="${mass / 12.0 * (y * y + z * z)}"
+        ixy="0"
+        ixz="0"
+        iyy="${mass / 12.0 * (x * x + z * z)}"
+        iyz="0"
+        izz="${mass / 12.0 * (x * x + y * y)}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="cylinder_inertial_y_axis" params="mass radius length">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="${mass}"/>
+      <!-- Solid cylinder whose rotation axis is the link y axis. -->
+      <inertia
+        ixx="${mass / 12.0 * (3.0 * radius * radius + length * length)}"
+        ixy="0"
+        ixz="0"
+        iyy="${0.5 * mass * radius * radius}"
+        iyz="0"
+        izz="${mass / 12.0 * (3.0 * radius * radius + length * length)}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="wheel_link" params="name">
+    <link name="${name}">
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi / 2.0} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="wheel_black"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi / 2.0} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+      </collision>
+      <xacro:cylinder_inertial_y_axis
+        mass="${wheel_mass}"
+        radius="${wheel_radius}"
+        length="${wheel_width}"/>
+    </link>
+  </xacro:macro>
+
+  <xacro:macro name="motor_link" params="name">
+    <link name="${name}">
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi / 2.0} 0 0"/>
+        <geometry>
+          <cylinder radius="${motor_radius}" length="${motor_length}"/>
+        </geometry>
+        <material name="motor_dark"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi / 2.0} 0 0"/>
+        <geometry>
+          <cylinder radius="${motor_radius}" length="${motor_length}"/>
+        </geometry>
+      </collision>
+      <xacro:cylinder_inertial_y_axis
+        mass="${motor_mass}"
+        radius="${motor_radius}"
+        length="${motor_length}"/>
+    </link>
+  </xacro:macro>
+
+  <!-- Chassis link: all body geometry is offset from the axle-centered base_link. -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${body_com_z}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${body_length} ${body_width} ${body_height}"/>
+      </geometry>
+      <material name="body_gray"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${body_com_z}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${body_length} ${body_width} ${body_height}"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertial
+      mass="${body_mass}"
+      x="${body_length}"
+      y="${body_width}"
+      z="${body_height}"
+      ox="0"
+      oy="0"
+      oz="${body_com_z}"/>
+  </link>
+
+  <xacro:wheel_link name="left_wheel_link"/>
+  <joint name="left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="left_wheel_link"/>
+    <origin xyz="0 ${wheel_separation / 2.0} 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="${wheel_effort_limit}" velocity="${wheel_velocity_limit}"/>
+    <dynamics damping="0.002" friction="0.001"/>
+  </joint>
+
+  <xacro:wheel_link name="right_wheel_link"/>
+  <joint name="right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="right_wheel_link"/>
+    <origin xyz="0 ${-wheel_separation / 2.0} 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="${wheel_effort_limit}" velocity="${wheel_velocity_limit}"/>
+    <dynamics damping="0.002" friction="0.001"/>
+  </joint>
+
+  <xacro:motor_link name="left_motor_link"/>
+  <joint name="left_motor_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="left_motor_link"/>
+    <origin xyz="0 ${motor_y} 0" rpy="0 0 0"/>
+  </joint>
+
+  <xacro:motor_link name="right_motor_link"/>
+  <joint name="right_motor_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="right_motor_link"/>
+    <origin xyz="0 ${-motor_y} 0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="battery_link">
+    <visual>
+      <geometry>
+        <box size="${battery_length} ${battery_width} ${battery_height}"/>
+      </geometry>
+      <material name="battery_blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${battery_length} ${battery_width} ${battery_height}"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertial
+      mass="${battery_mass}"
+      x="${battery_length}"
+      y="${battery_width}"
+      z="${battery_height}"
+      ox="0"
+      oy="0"
+      oz="0"/>
+  </link>
+  <joint name="battery_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="battery_link"/>
+    <origin xyz="${battery_x} 0 ${battery_z}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="controller_board_link">
+    <visual>
+      <geometry>
+        <box size="${board_length} ${board_width} ${board_height}"/>
+      </geometry>
+      <material name="board_green"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${board_length} ${board_width} ${board_height}"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertial
+      mass="${board_mass}"
+      x="${board_length}"
+      y="${board_width}"
+      z="${board_height}"
+      ox="0"
+      oy="0"
+      oz="0"/>
+  </link>
+  <joint name="controller_board_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="controller_board_link"/>
+    <origin xyz="${board_x} 0 ${board_z}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="imu_link">
+    <visual>
+      <geometry>
+        <box size="${imu_length} ${imu_width} ${imu_height}"/>
+      </geometry>
+      <material name="imu_orange"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${imu_length} ${imu_width} ${imu_height}"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertial
+      mass="${imu_mass}"
+      x="${imu_length}"
+      y="${imu_width}"
+      z="${imu_height}"
+      ox="0"
+      oy="0"
+      oz="0"/>
+  </link>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="${imu_x} 0 ${imu_z}" rpy="0 0 0"/>
+  </joint>
+
+  <gazebo>
+    <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
+      <robot_param>robot_description</robot_param>
+      <robot_param_node>robot_state_publisher</robot_param_node>
+      <parameters>$(find balance_car_description)/config/ros2_control_balance_65mm.yaml</parameters>
+    </plugin>
+  </gazebo>
+
+  <gazebo reference="base_link">
+    <material>Gazebo/Grey</material>
+    <selfCollide>false</selfCollide>
+  </gazebo>
+
+  <gazebo reference="left_wheel_link">
+    <material>Gazebo/Black</material>
+    <mu1>1.45</mu1>
+    <mu2>0.85</mu2>
+    <kp>1000000.0</kp>
+    <kd>4.0</kd>
+    <minDepth>0.001</minDepth>
+    <maxVel>0.1</maxVel>
+  </gazebo>
+
+  <gazebo reference="right_wheel_link">
+    <material>Gazebo/Black</material>
+    <mu1>1.45</mu1>
+    <mu2>0.85</mu2>
+    <kp>1000000.0</kp>
+    <kd>4.0</kd>
+    <minDepth>0.001</minDepth>
+    <maxVel>0.1</maxVel>
+  </gazebo>
+
+  <gazebo reference="left_motor_link">
+    <material>Gazebo/DarkGrey</material>
+  </gazebo>
+
+  <gazebo reference="right_motor_link">
+    <material>Gazebo/DarkGrey</material>
+  </gazebo>
+
+  <gazebo reference="battery_link">
+    <material>Gazebo/Blue</material>
+  </gazebo>
+
+  <gazebo reference="controller_board_link">
+    <material>Gazebo/Green</material>
+  </gazebo>
+
+  <gazebo reference="imu_link">
+    <material>Gazebo/Orange</material>
+    <sensor name="imu_sensor" type="imu">
+      <always_on>true</always_on>
+      <update_rate>250</update_rate>
+      <visualize>false</visualize>
+      <imu>
+        <angular_velocity>
+          <x>
+            <noise type="gaussian">
+              <mean>0.0</mean>
+              <stddev>0.0002</stddev>
+              <bias_mean>0.0</bias_mean>
+              <bias_stddev>0.00002</bias_stddev>
+            </noise>
+          </x>
+          <y>
+            <noise type="gaussian">
+              <mean>0.0</mean>
+              <stddev>0.0002</stddev>
+              <bias_mean>0.0</bias_mean>
+              <bias_stddev>0.00002</bias_stddev>
+            </noise>
+          </y>
+          <z>
+            <noise type="gaussian">
+              <mean>0.0</mean>
+              <stddev>0.0002</stddev>
+              <bias_mean>0.0</bias_mean>
+              <bias_stddev>0.00002</bias_stddev>
+            </noise>
+          </z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x>
+            <noise type="gaussian">
+              <mean>0.0</mean>
+              <stddev>0.0010</stddev>
+              <bias_mean>0.0</bias_mean>
+              <bias_stddev>0.0001</bias_stddev>
+            </noise>
+          </x>
+          <y>
+            <noise type="gaussian">
+              <mean>0.0</mean>
+              <stddev>0.0010</stddev>
+              <bias_mean>0.0</bias_mean>
+              <bias_stddev>0.0001</bias_stddev>
+            </noise>
+          </y>
+          <z>
+            <noise type="gaussian">
+              <mean>0.0</mean>
+              <stddev>0.0010</stddev>
+              <bias_mean>0.0</bias_mean>
+              <bias_stddev>0.0001</bias_stddev>
+            </noise>
+          </z>
+        </linear_acceleration>
+      </imu>
+      <plugin filename="libgazebo_ros_imu_sensor.so" name="imu_plugin">
+        <ros>
+          <namespace>imu</namespace>
+          <remapping>~/out:=data</remapping>
+        </ros>
+        <frame_name>imu_link</frame_name>
+        <initial_orientation_as_reference>false</initial_orientation_as_reference>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <ros2_control name="GazeboSystem" type="system">
+    <hardware>
+      <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+    </hardware>
+
+    <joint name="left_wheel_joint">
+      <command_interface name="velocity">
+        <param name="min">${-wheel_velocity_limit}</param>
+        <param name="max">${wheel_velocity_limit}</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <param name="mechanical_reduction">${motor_gear_ratio}</param>
+    </joint>
+
+    <joint name="right_wheel_joint">
+      <command_interface name="velocity">
+        <param name="min">${-wheel_velocity_limit}</param>
+        <param name="max">${wheel_velocity_limit}</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <param name="mechanical_reduction">${motor_gear_ratio}</param>
+    </joint>
+
+    <sensor name="imu_sensor">
+      <state_interface name="orientation.x"/>
+      <state_interface name="orientation.y"/>
+      <state_interface name="orientation.z"/>
+      <state_interface name="orientation.w"/>
+      <state_interface name="angular_velocity.x"/>
+      <state_interface name="angular_velocity.y"/>
+      <state_interface name="angular_velocity.z"/>
+      <state_interface name="linear_acceleration.x"/>
+      <state_interface name="linear_acceleration.y"/>
+      <state_interface name="linear_acceleration.z"/>
+    </sensor>
+  </ros2_control>
+
+</robot>

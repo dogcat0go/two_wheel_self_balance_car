@@ -11,6 +11,12 @@ find_package(ament_cmake REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
+install(PROGRAMS
+  src/imu_debug_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME imu_debug_node
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights

@@ -31,7 +31,7 @@ def generate_launch_description():
 
     # Paths
     urdf_xacro = os.path.join(pkg_dir, "urdf", "two_wheel_balance_65mm.urdf.xacro")
-    world_file = os.path.join(pkg_dir, "worlds", "empty.world")
+    world_file = os.path.join(pkg_dir, "worlds", "imu_debug.world")
 
     use_sim_time = LaunchConfiguration("use_sim_time", default="true")
     use_rviz = LaunchConfiguration("use_rviz", default="true")

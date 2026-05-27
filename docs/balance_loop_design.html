@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>两轮自平衡小车平衡环设计与代码</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #667085;
+      --line: #d8dee9;
+      --blue: #2563eb;
+      --green: #0f766e;
+      --orange: #b45309;
+      --red: #b91c1c;
+      --purple: #6d28d9;
+      --code-bg: #111827;
+      --code-ink: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.65;
+    }
+
+    header {
+      background: linear-gradient(135deg, #111827, #1d4ed8);
+      color: white;
+      padding: 46px 24px;
+    }
+
+    header .wrap,
+    main {
+      max-width: 1160px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.2;
+    }
+
+    header p {
+      max-width: 920px;
+      margin: 0;
+      color: #dbeafe;
+      font-size: 18px;
+    }
+
+    main {
+      padding: 28px 20px 56px;
+    }
+
+    section,
+    nav,
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 28px rgb(15 23 42 / 6%);
+    }
+
+    section,
+    nav {
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 25px;
+    }
+
+    h3 {
+      margin: 22px 0 10px;
+      font-size: 19px;
+    }
+
+    p {
+      margin: 10px 0;
+    }
+
+    code {
+      border-radius: 6px;
+      background: #eef2ff;
+      color: #3730a3;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow: auto;
+      border-radius: 12px;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      padding: 16px;
+      line-height: 1.5;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+    }
+
+    ul,
+    ol {
+      padding-left: 1.35rem;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f1f5f9;
+    }
+
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc a {
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #f8fafc;
+      color: var(--blue);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      padding: 16px;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .tag {
+      display: inline-block;
+      margin: 4px 6px 4px 0;
+      border-radius: 999px;
+      background: #e0f2fe;
+      color: #075985;
+      padding: 3px 10px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .tag.green {
+      background: #ccfbf1;
+      color: #115e59;
+    }
+
+    .tag.orange {
+      background: #ffedd5;
+      color: #9a3412;
+    }
+
+    .tag.purple {
+      background: #ede9fe;
+      color: #5b21b6;
+    }
+
+    .note {
+      border-left: 5px solid var(--blue);
+      background: #eff6ff;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #1e3a8a;
+    }
+
+    .warning {
+      border-left: 5px solid var(--orange);
+      background: #fff7ed;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #7c2d12;
+    }
+
+    .danger {
+      border-left: 5px solid var(--red);
+      background: #fef2f2;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #7f1d1d;
+    }
+
+    .flow {
+      display: grid;
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .flow-step {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #f8fafc;
+      padding: 14px 16px;
+    }
+
+    .flow-step::after {
+      content: "↓";
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .flow-step:last-child::after {
+      content: "";
+      margin: 0;
+    }
+
+    .flow-step strong {
+      color: var(--green);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>平衡环设计：先做 PD 内环，再扩展 PID/速度外环</h1>
+      <p>
+        你现在已经能从 IMU 得到 pitch 和 yaw。下一步不要先追求完整 PID，
+        而是先建立“姿态符号确认 + 安全限幅 + 最小 PD 平衡内环”的闭环。
+        平衡车的核心是 pitch 内环，yaw 暂时只用于观察，后续做转向外环时再使用。
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <nav aria-label="页面目录">
+      <h2>目录</h2>
+      <ul class="toc">
+        <li><a href="#answer">先做什么</a></li>
+        <li><a href="#loop">平衡环结构</a></li>
+        <li><a href="#signals">控制信号定义</a></li>
+        <li><a href="#tuning">调参顺序</a></li>
+        <li><a href="#files">建议文件结构</a></li>
+        <li><a href="#code-pid">PID 工具类</a></li>
+        <li><a href="#code-node">平衡控制节点</a></li>
+        <li><a href="#config">参数配置</a></li>
+        <li><a href="#run">运行和观察</a></li>
+      </ul>
+    </nav>
+
+    <section id="answer">
+      <h2>先做什么</h2>
+      <p>
+        现在应该做的第一件事不是“完整 PID 控制器”，而是把平衡内环的闭环骨架建起来。
+        对两轮平衡车来说，第一版应该使用 <strong>PD 控制</strong>，也就是只使用 pitch 误差和 pitch 角速度。
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <h3>第 1 步：确认符号</h3>
+          <p>确认车身前倾时 pitch 是正还是负，确认左右轮同向命令 <code>[w, w]</code> 让车向前还是向后。</p>
+          <span class="tag orange">必须先做</span>
+        </div>
+
+        <div class="card">
+          <h3>第 2 步：加安全层</h3>
+          <p>加入 IMU 超时、跌倒角度、轮速限幅、输出斜率限制。没有安全层时不要打开闭环。</p>
+          <span class="tag orange">限幅</span>
+          <span class="tag orange">急停</span>
+        </div>
+
+        <div class="card">
+          <h3>第 3 步：做 PD 内环</h3>
+          <p>先只让车“扶住自己”。此阶段不用 yaw，也不用位置积分。</p>
+          <span class="tag green">pitch</span>
+          <span class="tag green">gyro_y</span>
+        </div>
+
+        <div class="card">
+          <h3>第 4 步：再扩展外环</h3>
+          <p>内环稳定后，再加入轮速阻尼、位置外环、速度外环和 yaw 转向控制。</p>
+          <span class="tag purple">后续</span>
+        </div>
+      </div>
+
+      <p class="warning">
+        平衡内环第一版不要使用 I 项。I 项会在小车倒下、轮子限幅或传感器异常时积累误差，
+        很容易让轮子突然打满。等 PD 能站住以后，再考虑在速度外环或位置外环中使用很小的 I 项。
+      </p>
+    </section>
+
+    <section id="loop">
+      <h2>平衡环结构</h2>
+      <p>
+        平衡环是一个内环，它不直接关心小车要往哪里走，只关心车身是否接近竖直。
+        它订阅 IMU，计算 wheel velocity command，并发布到现有的
+        <code>/wheel_velocity_controller/commands</code>。
+      </p>
+
+      <div class="flow">
+        <div class="flow-step">
+          <strong>1. 读取 IMU</strong><br>
+          从 quaternion 得到 <code>pitch</code>，从 <code>angular_velocity.y</code> 得到 <code>pitch_rate</code>。
+        </div>
+
+        <div class="flow-step">
+          <strong>2. 计算姿态误差</strong><br>
+          <code>pitch_error = pitch - pitch_target</code>。初始目标 <code>pitch_target = 0</code>。
+        </div>
+
+        <div class="flow-step">
+          <strong>3. PD 控制</strong><br>
+          <code>u = kp * pitch_error - kd * pitch_rate</code>，再乘 <code>output_sign</code> 修正轮子方向。
+        </div>
+
+        <div class="flow-step">
+          <strong>4. 安全过滤</strong><br>
+          对 <code>u</code> 做限幅、斜率限制、跌倒保护、IMU 超时保护。
+        </div>
+
+        <div class="flow-step">
+          <strong>5. 发布左右轮速度</strong><br>
+          平衡内环阶段左右轮同向：<code>[u, u]</code>。
+        </div>
+      </div>
+
+      <p class="note">
+        yaw 不是平衡内环的核心量。yaw 用于“朝向控制”和“转向控制”，后续可以通过
+        <code>left = balance_u - turn_u</code>、
+        <code>right = balance_u + turn_u</code> 混合进左右轮。
+      </p>
+    </section>
+
+    <section id="signals">
+      <h2>控制信号定义</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>变量</th>
+            <th>来源</th>
+            <th>含义</th>
+            <th>第一版用途</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>pitch</code></td>
+            <td>IMU quaternion</td>
+            <td>车身绕 y 轴的前后倾角</td>
+            <td>主反馈量</td>
+          </tr>
+          <tr>
+            <td><code>pitch_rate</code></td>
+            <td><code>imu.angular_velocity.y</code></td>
+            <td>车身前后倾倒角速度</td>
+            <td>D 项反馈，抑制震荡</td>
+          </tr>
+          <tr>
+            <td><code>yaw</code></td>
+            <td>IMU quaternion</td>
+            <td>车身朝向角</td>
+            <td>先记录，不参与平衡内环</td>
+          </tr>
+          <tr>
+            <td><code>wheel_u</code></td>
+            <td>控制器输出</td>
+            <td>左右轮共同角速度命令，单位 <code>rad/s</code></td>
+            <td>发布到轮速控制器</td>
+          </tr>
+          <tr>
+            <td><code>output_sign</code></td>
+            <td>参数</td>
+            <td>修正控制输出方向</td>
+            <td>如果轮子追反了，只改它</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <pre><code>pitch_error = pitch - pitch_target
+raw_u = kp_pitch * pitch_error - kd_pitch * pitch_rate
+wheel_u = output_sign * raw_u
+wheel_u = clamp_and_rate_limit(wheel_u)
+publish([wheel_u, wheel_u])</code></pre>
+    </section>
+
+    <section id="tuning">
+      <h2>调参顺序</h2>
+      <ol>
+        <li>先在 <code>imu_debug.world</code> 中确认 pitch 符号、pitch_rate 符号、轮子命令方向。</li>
+        <li>设置 <code>enabled: false</code>，只看 <code>/balance_controller/debug</code> 输出是否合理。</li>
+        <li>设置很小的 <code>max_wheel_velocity</code>，例如 <code>3.0 rad/s</code>。</li>
+        <li>打开 <code>enabled: true</code>，先把 <code>kp_pitch</code> 从很小值开始加。</li>
+        <li>如果车身开始来回震荡，再增加 <code>kd_pitch</code>。</li>
+        <li>如果车向前倒时轮子向后跑，不要改 PID，只改 <code>output_sign</code>。</li>
+        <li>PD 能短时间站住后，再加入轮速阻尼 <code>kv_wheel</code> 或速度外环。</li>
+      </ol>
+
+      <p class="danger">
+        不要同时调 <code>kp_pitch</code>、<code>kd_pitch</code>、<code>output_sign</code> 和限幅。
+        每次只改一个变量，否则很难判断问题来自符号、增益还是限幅。
+      </p>
+    </section>
+
+    <section id="files">
+      <h2>建议文件结构</h2>
+      <p>
+        你的 <code>balance_car_control</code> 当前是 <code>ament_cmake</code> 包，可以继续用
+        <code>install(PROGRAMS ...)</code> 安装 Python 节点。
+      </p>
+
+      <pre><code>src/balance_car_control/
+  CMakeLists.txt
+  package.xml
+  src/
+    imu_debug_node.py
+    pid.py
+    balance_controller_node.py
+  config/
+    balance_controller.yaml
+  launch/
+    balance_controller.launch.py</code></pre>
+
+      <h3>CMake 安装 Python 节点</h3>
+      <pre><code>install(PROGRAMS
+  src/imu_debug_node.py
+  src/balance_controller_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)</code></pre>
+
+      <p>
+        如果 <code>pid.py</code> 只是被其他脚本 import，而不是直接 <code>ros2 run</code>，
+        更稳妥的做法是后续把包整理成标准 Python 模块。当前阶段也可以先把 PID 类直接放进
+        <code>balance_controller_node.py</code>，减少 import 路径问题。
+      </p>
+    </section>
+
+    <section id="code-pid">
+      <h2>PID 工具类</h2>
+      <p>
+        这里保留 PID 名字，但平衡内环第一版只用 P 和 D。D 项优先使用 IMU 陀螺仪测到的
+        <code>pitch_rate</code>，不要对 pitch 数值做差分，因为差分更容易放大噪声。
+      </p>
+
+      <pre><code>#!/usr/bin/env python3
+
+from dataclasses import dataclass
+from typing import Optional
+
+
+@dataclass
+class PIDConfig:
+    kp: float = 0.0
+    ki: float = 0.0
+    kd: float = 0.0
+    integral_limit: Optional[float] = None
+    output_limit: Optional[float] = None
+
+
+class PID:
+    def __init__(self, config: PIDConfig):
+        self.config = config
+        self.integral = 0.0
+        self.previous_error = None
+
+    def reset(self):
+        self.integral = 0.0
+        self.previous_error = None
+
+    def compute(self, error, dt, measured_rate=None):
+        if dt &lt;= 0.0:
+            return 0.0
+
+        p_term = self.config.kp * error
+
+        self.integral += error * dt
+        if self.config.integral_limit is not None:
+            limit = abs(self.config.integral_limit)
+            self.integral = max(-limit, min(limit, self.integral))
+        i_term = self.config.ki * self.integral
+
+        if measured_rate is not None:
+            d_error = -measured_rate
+        elif self.previous_error is None:
+            d_error = 0.0
+        else:
+            d_error = (error - self.previous_error) / dt
+        d_term = self.config.kd * d_error
+
+        self.previous_error = error
+        output = p_term + i_term + d_term
+
+        if self.config.output_limit is not None:
+            limit = abs(self.config.output_limit)
+            output = max(-limit, min(limit, output))
+
+        return output</code></pre>
+    </section>
+
+    <section id="code-node">
+      <h2>平衡控制节点</h2>
+      <p>
+        下面是第一版平衡内环节点。它不使用 yaw，不接 <code>/cmd_vel</code>，
+        只做 pitch 平衡。为了方便你当前的 <code>ament_cmake</code> 布局，这份代码把 PID 类也放在同一个文件里。
+      </p>
+
+      <pre><code>#!/usr/bin/env python3
+
+import math
+from dataclasses import dataclass
+from typing import Optional
+
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Imu
+from std_msgs.msg import Float64MultiArray
+
+
+def clamp(value, lower, upper):
+    return max(lower, min(upper, value))
+
+
+def quaternion_to_euler(x, y, z, w):
+    sinr_cosp = 2.0 * (w * x + y * z)
+    cosr_cosp = 1.0 - 2.0 * (x * x + y * y)
+    roll = math.atan2(sinr_cosp, cosr_cosp)
+
+    sinp = 2.0 * (w * y - z * x)
+    if abs(sinp) &gt;= 1.0:
+        pitch = math.copysign(math.pi / 2.0, sinp)
+    else:
+        pitch = math.asin(sinp)
+
+    siny_cosp = 2.0 * (w * z + x * y)
+    cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
+    yaw = math.atan2(siny_cosp, cosy_cosp)
+
+    return roll, pitch, yaw
+
+
+@dataclass
+class PIDConfig:
+    kp: float = 0.0
+    ki: float = 0.0
+    kd: float = 0.0
+    integral_limit: Optional[float] = None
+    output_limit: Optional[float] = None
+
+
+class PID:
+    def __init__(self, config: PIDConfig):
+        self.config = config
+        self.integral = 0.0
+        self.previous_error = None
+
+    def reset(self):
+        self.integral = 0.0
+        self.previous_error = None
+
+    def compute(self, error, dt, measured_rate=None):
+        if dt &lt;= 0.0:
+            return 0.0
+
+        p_term = self.config.kp * error
+        self.integral += error * dt
+
+        if self.config.integral_limit is not None:
+            limit = abs(self.config.integral_limit)
+            self.integral = clamp(self.integral, -limit, limit)
+        i_term = self.config.ki * self.integral
+
+        if measured_rate is not None:
+            d_error = -measured_rate
+        elif self.previous_error is None:
+            d_error = 0.0
+        else:
+            d_error = (error - self.previous_error) / dt
+        d_term = self.config.kd * d_error
+
+        self.previous_error = error
+        output = p_term + i_term + d_term
+
+        if self.config.output_limit is not None:
+            limit = abs(self.config.output_limit)
+            output = clamp(output, -limit, limit)
+
+        return output
+
+
+class BalanceControllerNode(Node):
+    def __init__(self):
+        super().__init__("balance_controller_node")
+
+        self.declare_parameter("enabled", False)
+        self.declare_parameter("imu_topic", "/imu/data")
+        self.declare_parameter("command_topic", "/wheel_velocity_controller/commands")
+        self.declare_parameter("debug_topic", "/balance_controller/debug")
+        self.declare_parameter("control_rate", 200.0)
+        self.declare_parameter("pitch_target", 0.0)
+        self.declare_parameter("kp_pitch", 2.0)
+        self.declare_parameter("kd_pitch", 0.12)
+        self.declare_parameter("output_sign", 1.0)
+        self.declare_parameter("max_wheel_velocity", 3.0)
+        self.declare_parameter("max_wheel_accel", 60.0)
+        self.declare_parameter("fall_angle_rad", 0.61)
+        self.declare_parameter("imu_timeout_sec", 0.05)
+
+        self.enabled = bool(self.get_parameter("enabled").value)
+        self.pitch_target = float(self.get_parameter("pitch_target").value)
+        self.output_sign = float(self.get_parameter("output_sign").value)
+        self.max_wheel_velocity = float(self.get_parameter("max_wheel_velocity").value)
+        self.max_wheel_accel = float(self.get_parameter("max_wheel_accel").value)
+        self.fall_angle_rad = float(self.get_parameter("fall_angle_rad").value)
+        self.imu_timeout_sec = float(self.get_parameter("imu_timeout_sec").value)
+
+        kp = float(self.get_parameter("kp_pitch").value)
+        kd = float(self.get_parameter("kd_pitch").value)
+        self.pid = PID(PIDConfig(
+            kp=kp,
+            ki=0.0,
+            kd=kd,
+            output_limit=self.max_wheel_velocity,
+        ))
+
+        imu_topic = self.get_parameter("imu_topic").value
+        command_topic = self.get_parameter("command_topic").value
+        debug_topic = self.get_parameter("debug_topic").value
+
+        self.latest_pitch = None
+        self.latest_pitch_rate = None
+        self.latest_yaw = None
+        self.last_imu_time = None
+        self.last_control_time = self.get_clock().now()
+        self.last_wheel_command = 0.0
+
+        self.command_pub = self.create_publisher(Float64MultiArray, command_topic, 10)
+        self.debug_pub = self.create_publisher(Float64MultiArray, debug_topic, 10)
+        self.create_subscription(Imu, imu_topic, self.on_imu, 20)
+
+        control_rate = float(self.get_parameter("control_rate").value)
+        self.create_timer(1.0 / control_rate, self.on_timer)
+
+        self.get_logger().warn(
+            "Balance controller started. enabled={} kp={:.3f} kd={:.3f}".format(
+                self.enabled,
+                kp,
+                kd,
+            )
+        )
+
+    def on_imu(self, msg):
+        q = msg.orientation
+        _, pitch, yaw = quaternion_to_euler(q.x, q.y, q.z, q.w)
+        self.latest_pitch = pitch
+        self.latest_yaw = yaw
+        self.latest_pitch_rate = msg.angular_velocity.y
+        self.last_imu_time = self.get_clock().now()
+
+    def rate_limit(self, target, dt):
+        max_delta = self.max_wheel_accel * dt
+        delta = clamp(target - self.last_wheel_command, -max_delta, max_delta)
+        limited = self.last_wheel_command + delta
+        self.last_wheel_command = limited
+        return limited
+
+    def publish_wheels(self, wheel_velocity):
+        self.command_pub.publish(Float64MultiArray(data=[
+            wheel_velocity,
+            wheel_velocity,
+        ]))
+
+    def stop_wheels(self):
+        self.last_wheel_command = 0.0
+        self.pid.reset()
+        self.publish_wheels(0.0)
+
+    def on_timer(self):
+        now = self.get_clock().now()
+        dt = (now - self.last_control_time).nanoseconds / 1e9
+        self.last_control_time = now
+
+        if self.latest_pitch is None or self.last_imu_time is None:
+            self.stop_wheels()
+            return
+
+        imu_age = (now - self.last_imu_time).nanoseconds / 1e9
+        if imu_age &gt; self.imu_timeout_sec:
+            self.get_logger().warn("IMU timeout, stopping wheels", throttle_duration_sec=1.0)
+            self.stop_wheels()
+            return
+
+        pitch = self.latest_pitch
+        pitch_rate = self.latest_pitch_rate or 0.0
+        pitch_error = pitch - self.pitch_target
+
+        if abs(pitch) &gt; self.fall_angle_rad:
+            self.get_logger().warn(
+                "Fall angle reached: pitch={:.2f} deg".format(math.degrees(pitch)),
+                throttle_duration_sec=1.0,
+            )
+            self.stop_wheels()
+            return
+
+        raw_u = self.pid.compute(
+            error=pitch_error,
+            dt=dt,
+            measured_rate=pitch_rate,
+        )
+        signed_u = self.output_sign * raw_u
+        saturated_u = clamp(
+            signed_u,
+            -self.max_wheel_velocity,
+            self.max_wheel_velocity,
+        )
+        wheel_u = self.rate_limit(saturated_u, dt)
+
+        if self.enabled:
+            self.publish_wheels(wheel_u)
+        else:
+            self.stop_wheels()
+            wheel_u = 0.0
+
+        self.debug_pub.publish(Float64MultiArray(data=[
+            pitch,
+            pitch_rate,
+            pitch_error,
+            raw_u,
+            wheel_u,
+            self.latest_yaw or 0.0,
+            1.0 if self.enabled else 0.0,
+        ]))
+
+
+def main():
+    rclpy.init()
+    node = BalanceControllerNode()
+    try:
+        rclpy.spin(node)
+    finally:
+        node.stop_wheels()
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()</code></pre>
+    </section>
+
+    <section id="config">
+      <h2>参数配置</h2>
+      <p>
+        第一版参数要保守，尤其是 <code>max_wheel_velocity</code> 和 <code>enabled</code>。
+        建议先在支撑 world 中打开，再切回自由 world。
+      </p>
+
+      <pre><code>balance_controller_node:
+  ros__parameters:
+    use_sim_time: true
+    enabled: false
+    imu_topic: /imu/data
+    command_topic: /wheel_velocity_controller/commands
+    debug_topic: /balance_controller/debug
+    control_rate: 200.0
+    pitch_target: 0.0
+    kp_pitch: 2.0
+    kd_pitch: 0.12
+    output_sign: 1.0
+    max_wheel_velocity: 3.0
+    max_wheel_accel: 60.0
+    fall_angle_rad: 0.61
+    imu_timeout_sec: 0.05</code></pre>
+
+      <table>
+        <thead>
+          <tr>
+            <th>参数</th>
+            <th>建议初值</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>enabled</code></td>
+            <td><code>false</code></td>
+            <td>先只观察 debug，不马上让轮子动。</td>
+          </tr>
+          <tr>
+            <td><code>kp_pitch</code></td>
+            <td><code>1.0 ~ 3.0</code></td>
+            <td>先从小值开始加，直到轮子明显追车体。</td>
+          </tr>
+          <tr>
+            <td><code>kd_pitch</code></td>
+            <td><code>0.05 ~ 0.3</code></td>
+            <td>用于抑制来回震荡。</td>
+          </tr>
+          <tr>
+            <td><code>output_sign</code></td>
+            <td><code>1.0</code> 或 <code>-1.0</code></td>
+            <td>只用于修正轮子追车体方向。</td>
+          </tr>
+          <tr>
+            <td><code>max_wheel_velocity</code></td>
+            <td><code>3.0 rad/s</code></td>
+            <td>第一轮调试不要直接使用 URDF 的 <code>35 rad/s</code> 上限。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="run">
+      <h2>运行和观察</h2>
+      <h3>安装节点</h3>
+      <pre><code># CMakeLists.txt 中添加
+install(PROGRAMS
+  src/balance_controller_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# package.xml 中确保有
+&lt;exec_depend&gt;rclpy&lt;/exec_depend&gt;
+&lt;exec_depend&gt;sensor_msgs&lt;/exec_depend&gt;
+&lt;exec_depend&gt;std_msgs&lt;/exec_depend&gt;</code></pre>
+
+      <h3>构建</h3>
+      <pre><code>colcon build --packages-select balance_car_control
+source install/setup.bash</code></pre>
+
+      <h3>先不开启输出</h3>
+      <pre><code>ros2 run balance_car_control balance_controller_node \
+  --ros-args \
+  --params-file src/balance_car_control/config/balance_controller.yaml</code></pre>
+
+      <h3>观察 debug</h3>
+      <pre><code># data[0] pitch
+# data[1] pitch_rate
+# data[3] raw_u
+# data[4] final wheel_u
+# data[5] yaw
+rqt_plot /balance_controller/debug/data[0] \
+         /balance_controller/debug/data[1] \
+         /balance_controller/debug/data[4]</code></pre>
+
+      <h3>开启小输出测试</h3>
+      <pre><code>ros2 run balance_car_control balance_controller_node \
+  --ros-args \
+  --params-file src/balance_car_control/config/balance_controller.yaml \
+  -p enabled:=true \
+  -p max_wheel_velocity:=3.0</code></pre>
+
+      <h3>方向反了时</h3>
+      <pre><code>ros2 run balance_car_control balance_controller_node \
+  --ros-args \
+  --params-file src/balance_car_control/config/balance_controller.yaml \
+  -p enabled:=true \
+  -p output_sign:=-1.0</code></pre>
+
+      <p class="note">
+        判断方向的标准很简单：车身向前倒时，轮子应该向前追；车身向后倒时，轮子应该向后追。
+        如果方向相反，只改 <code>output_sign</code>。
+      </p>
+    </section>
+  </main>
+</body>
+</html>

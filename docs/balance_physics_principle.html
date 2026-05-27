@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>两轮自平衡小车平衡环物理原理</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #667085;
+      --line: #d8dee9;
+      --blue: #2563eb;
+      --green: #0f766e;
+      --orange: #b45309;
+      --red: #b91c1c;
+      --purple: #6d28d9;
+      --code-bg: #111827;
+      --code-ink: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.65;
+    }
+
+    header {
+      background: linear-gradient(135deg, #111827, #1d4ed8);
+      color: white;
+      padding: 46px 24px;
+    }
+
+    header .wrap,
+    main {
+      max-width: 1160px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.2;
+    }
+
+    header p {
+      max-width: 920px;
+      margin: 0;
+      color: #dbeafe;
+      font-size: 18px;
+    }
+
+    main {
+      padding: 28px 20px 56px;
+    }
+
+    section,
+    nav,
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 28px rgb(15 23 42 / 6%);
+    }
+
+    section,
+    nav {
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 25px;
+    }
+
+    h3 {
+      margin: 22px 0 10px;
+      font-size: 19px;
+    }
+
+    p {
+      margin: 10px 0;
+    }
+
+    code {
+      border-radius: 6px;
+      background: #eef2ff;
+      color: #3730a3;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow: auto;
+      border-radius: 12px;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      padding: 16px;
+      line-height: 1.5;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+    }
+
+    ul,
+    ol {
+      padding-left: 1.35rem;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f1f5f9;
+    }
+
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc a {
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #f8fafc;
+      color: var(--blue);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      padding: 16px;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .tag {
+      display: inline-block;
+      margin: 4px 6px 4px 0;
+      border-radius: 999px;
+      background: #e0f2fe;
+      color: #075985;
+      padding: 3px 10px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .tag.green {
+      background: #ccfbf1;
+      color: #115e59;
+    }
+
+    .tag.orange {
+      background: #ffedd5;
+      color: #9a3412;
+    }
+
+    .tag.purple {
+      background: #ede9fe;
+      color: #5b21b6;
+    }
+
+    .note {
+      border-left: 5px solid var(--blue);
+      background: #eff6ff;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #1e3a8a;
+    }
+
+    .warning {
+      border-left: 5px solid var(--orange);
+      background: #fff7ed;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #7c2d12;
+    }
+
+    .danger {
+      border-left: 5px solid var(--red);
+      background: #fef2f2;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #7f1d1d;
+    }
+
+    .diagram {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #f8fafc;
+      padding: 18px;
+      overflow: auto;
+      margin: 18px 0;
+    }
+
+    svg {
+      width: 100%;
+      min-width: 760px;
+      height: auto;
+      display: block;
+    }
+
+    .flow {
+      display: grid;
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .flow-step {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #f8fafc;
+      padding: 14px 16px;
+    }
+
+    .flow-step::after {
+      content: "↓";
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .flow-step:last-child::after {
+      content: "";
+      margin: 0;
+    }
+
+    .flow-step strong {
+      color: var(--green);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>两轮自平衡小车平衡环的物理原理</h1>
+      <p>
+        平衡车不是靠“反作用力直接把车身推正”这么简单。电机力矩、轮地摩擦、重力矩和支撑点移动同时作用。
+        角动量当然需要遵守守恒定律，但整车不是孤立系统：地面和重力持续给系统外力与外力矩。
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <nav aria-label="页面目录">
+      <h2>目录</h2>
+      <ul class="toc">
+        <li><a href="#summary">一句话结论</a></li>
+        <li><a href="#diagram">结构示意图</a></li>
+        <li><a href="#torque">电机力矩和地面摩擦</a></li>
+        <li><a href="#pendulum">倒立摆视角</a></li>
+        <li><a href="#momentum">角动量是否守恒</a></li>
+        <li><a href="#control">平衡环在控制什么</a></li>
+        <li><a href="#code-map">代码变量对应物理量</a></li>
+      </ul>
+    </nav>
+
+    <section id="summary">
+      <h2>一句话结论</h2>
+      <p>
+        平衡环的目标不是“给车身一个反作用力让它转回去”，而是通过轮子加速让轮轴移动，
+        让车轮接地点追到车身重心下方，从而让重力矩不再继续把车身摔倒。
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <h3>电机做的事</h3>
+          <p>电机在车身和轮子之间施加等大反向力矩。</p>
+          <span class="tag orange">内部力矩</span>
+        </div>
+
+        <div class="card">
+          <h3>地面做的事</h3>
+          <p>轮子对地面施力，地面对轮子产生摩擦力，推动轮轴前后移动。</p>
+          <span class="tag green">外力</span>
+        </div>
+
+        <div class="card">
+          <h3>重力做的事</h3>
+          <p>重心不在接地点正上方时，重力对接地点产生翻倒力矩。</p>
+          <span class="tag purple">外力矩</span>
+        </div>
+      </div>
+
+      <p class="note">
+        你说的“反作用力让车身向反方向转动”是对的一部分：电机确实会给车身一个反向力矩。
+        但平衡车真正能长期站住，主要靠轮子和地面的摩擦把支撑点移动到合适位置。
+      </p>
+    </section>
+
+    <section id="diagram">
+      <h2>结构示意图</h2>
+      <p>
+        下面用前后方向的侧视图表示。假设车身向前倾，重心在轮轴前方。
+        控制器会让轮子向前加速，使轮轴追向重心下方。
+      </p>
+
+      <div class="diagram">
+        <svg viewBox="0 0 980 520" role="img" aria-label="两轮自平衡车侧视物理结构示意图">
+          <defs>
+            <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#2563eb"/>
+            </marker>
+            <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#0f766e"/>
+            </marker>
+            <marker id="arrow-orange" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#b45309"/>
+            </marker>
+            <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#b91c1c"/>
+            </marker>
+          </defs>
+
+          <rect x="0" y="0" width="980" height="520" fill="#f8fafc"/>
+          <line x1="80" y1="420" x2="900" y2="420" stroke="#475569" stroke-width="4"/>
+          <text x="82" y="455" fill="#475569" font-size="20">地面</text>
+
+          <!-- wheel -->
+          <circle cx="470" cy="380" r="42" fill="#111827" opacity="0.92"/>
+          <circle cx="470" cy="380" r="18" fill="#e5e7eb"/>
+          <circle cx="470" cy="420" r="5" fill="#b91c1c"/>
+          <text x="430" y="470" fill="#111827" font-size="18">轮子/接地点</text>
+
+          <!-- axle and body -->
+          <circle cx="470" cy="380" r="6" fill="#2563eb"/>
+          <line x1="470" y1="380" x2="540" y2="205" stroke="#2563eb" stroke-width="5"/>
+          <rect x="500" y="140" width="95" height="170" rx="14" fill="#93c5fd" stroke="#2563eb" stroke-width="3" transform="rotate(22 547.5 225)"/>
+          <text x="592" y="182" fill="#1e3a8a" font-size="18">车身前倾</text>
+
+          <!-- COM -->
+          <circle cx="565" cy="220" r="10" fill="#b91c1c"/>
+          <line x1="565" y1="220" x2="565" y2="420" stroke="#b91c1c" stroke-width="2" stroke-dasharray="8 6"/>
+          <text x="580" y="225" fill="#b91c1c" font-size="18">重心 COM</text>
+
+          <!-- gravity -->
+          <line x1="565" y1="235" x2="565" y2="335" stroke="#b91c1c" stroke-width="4" marker-end="url(#arrow-red)"/>
+          <text x="580" y="305" fill="#b91c1c" font-size="18">重力 mg</text>
+
+          <!-- support point and torque arm -->
+          <line x1="470" y1="420" x2="565" y2="420" stroke="#b91c1c" stroke-width="3" stroke-dasharray="6 6"/>
+          <text x="488" y="408" fill="#b91c1c" font-size="16">力臂</text>
+
+          <!-- motor torque -->
+          <path d="M424 380 A50 50 0 0 1 470 330" fill="none" stroke="#b45309" stroke-width="5" marker-end="url(#arrow-orange)"/>
+          <text x="300" y="330" fill="#b45309" font-size="18">电机给轮子力矩</text>
+          <path d="M535 290 A58 58 0 0 0 588 248" fill="none" stroke="#b45309" stroke-width="5" marker-end="url(#arrow-orange)"/>
+          <text x="610" y="270" fill="#b45309" font-size="18">反向力矩作用在车身</text>
+
+          <!-- friction and axle acceleration -->
+          <line x1="470" y1="420" x2="595" y2="420" stroke="#0f766e" stroke-width="5" marker-end="url(#arrow-green)"/>
+          <text x="600" y="425" fill="#0f766e" font-size="18">地面对轮子的摩擦力</text>
+          <line x1="470" y1="365" x2="625" y2="365" stroke="#2563eb" stroke-width="5" marker-end="url(#arrow-blue)"/>
+          <text x="635" y="370" fill="#2563eb" font-size="18">轮轴向前追重心</text>
+
+          <!-- pitch -->
+          <path d="M470 380 L470 230" stroke="#64748b" stroke-width="2" stroke-dasharray="6 6"/>
+          <path d="M470 290 A80 80 0 0 1 505 300" fill="none" stroke="#6d28d9" stroke-width="4" marker-end="url(#arrow-blue)"/>
+          <text x="420" y="220" fill="#6d28d9" font-size="18">pitch 角</text>
+
+          <!-- explanation box -->
+          <rect x="80" y="60" width="330" height="165" rx="16" fill="#ffffff" stroke="#d8dee9"/>
+          <text x="105" y="95" fill="#111827" font-size="20" font-weight="700">控制目标</text>
+          <text x="105" y="130" fill="#334155" font-size="17">车身向前倒时：</text>
+          <text x="105" y="160" fill="#334155" font-size="17">1. 轮子向前加速</text>
+          <text x="105" y="190" fill="#334155" font-size="17">2. 轮轴追向重心下方</text>
+          <text x="105" y="220" fill="#334155" font-size="17">3. 减小重力产生的翻倒力矩</text>
+
+          <rect x="650" y="60" width="260" height="130" rx="16" fill="#ffffff" stroke="#d8dee9"/>
+          <text x="675" y="95" fill="#111827" font-size="20" font-weight="700">不是孤立系统</text>
+          <text x="675" y="130" fill="#334155" font-size="17">地面给摩擦力</text>
+          <text x="675" y="160" fill="#334155" font-size="17">重力给外力矩</text>
+          <text x="675" y="190" fill="#334155" font-size="17">所以整车角动量不守恒</text>
+        </svg>
+      </div>
+    </section>
+
+    <section id="torque">
+      <h2>电机力矩和地面摩擦</h2>
+      <p>
+        电机安装在车身上，输出轴连着轮子。电机对轮子施加力矩时，车身会受到等大反向力矩。
+        这部分符合牛顿第三定律，也是你理解里的“反作用力”。
+      </p>
+
+      <div class="flow">
+        <div class="flow-step">
+          <strong>1. 电机对轮子施加力矩</strong><br>
+          轮子获得角加速度，试图相对地面滚动。
+        </div>
+
+        <div class="flow-step">
+          <strong>2. 轮子和地面产生静摩擦</strong><br>
+          如果不打滑，接地点相对地面近似静止，地面对轮子产生前后方向摩擦力。
+        </div>
+
+        <div class="flow-step">
+          <strong>3. 摩擦力推动轮轴平移</strong><br>
+          轮轴带着车身底部前后移动，支撑点位置发生变化。
+        </div>
+
+        <div class="flow-step">
+          <strong>4. 支撑点追到重心下方</strong><br>
+          重力对接地点的力臂变小，车身不再继续向同一方向摔倒。
+        </div>
+      </div>
+
+      <p class="note">
+        对平衡来说，“车轮转起来”不是最终目的。真正有用的是轮地摩擦把轮轴位置改变了。
+      </p>
+    </section>
+
+    <section id="pendulum">
+      <h2>倒立摆视角</h2>
+      <p>
+        两轮平衡车可近似看作“倒立摆 + 可移动底座”。车身是倒立摆，轮轴是底座。
+        如果车身向前倾，控制器让底座向前加速；如果车身向后倾，控制器让底座向后加速。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>现象</th>
+            <th>物理解释</th>
+            <th>控制动作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>车身向前倾</td>
+            <td>重心落在接地点前方，重力产生继续前倒的力矩</td>
+            <td>轮子向前加速，让轮轴追上重心</td>
+          </tr>
+          <tr>
+            <td>车身向后倾</td>
+            <td>重心落在接地点后方，重力产生继续后倒的力矩</td>
+            <td>轮子向后加速，让轮轴追上重心</td>
+          </tr>
+          <tr>
+            <td>车身来回震荡</td>
+            <td>P 项过大或阻尼不足</td>
+            <td>增加 D 项，或者降低 P 项</td>
+          </tr>
+          <tr>
+            <td>车站住但一直跑</td>
+            <td>内环只管姿态，不管位置</td>
+            <td>后续加入轮速阻尼、速度外环或位置外环</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="momentum">
+      <h2>角动量是否守恒</h2>
+      <p>
+        角动量守恒的前提是系统受到的外力矩为零。两轮平衡车在地面上运动时，这个前提不成立。
+        因为系统持续受到地面接触力、地面摩擦力、重力、法向力等外力。
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <h3>如果只看“车身 + 轮子”</h3>
+          <p>电机力矩是内部力矩，轮子和车身之间的角动量交换需要守恒。</p>
+          <span class="tag">局部守恒</span>
+        </div>
+
+        <div class="card">
+          <h3>如果加入“地面接触”</h3>
+          <p>地面对轮子的摩擦力是外力，能改变整车线动量，也会对不同参考点产生外力矩。</p>
+          <span class="tag green">外力参与</span>
+        </div>
+
+        <div class="card">
+          <h3>如果以接地点为转动参考</h3>
+          <p>重力对接地点有力臂，会产生翻倒力矩；支撑点移动会改变这个力臂。</p>
+          <span class="tag orange">重力矩</span>
+        </div>
+      </div>
+
+      <p class="warning">
+        所以不能简单说“角动量守恒，所以车轮转了车身就必然反向转同样多”。
+        在真实平衡车问题中，地面不断交换动量，重力不断施加翻倒力矩，电机只是让轮子和地面产生正确的相互作用。
+      </p>
+    </section>
+
+    <section id="control">
+      <h2>平衡环在控制什么</h2>
+      <p>
+        平衡环本质上在控制车身相对竖直方向的角度和角速度。它通过输出轮速命令间接控制轮轴加速度。
+      </p>
+
+      <pre><code>pitch_error = pitch - pitch_target
+wheel_command = output_sign * (
+    kp_pitch * pitch_error
+    - kd_pitch * pitch_rate
+)
+publish([wheel_command, wheel_command])</code></pre>
+
+      <p>
+        其中 <code>kp_pitch</code> 负责“看到倾斜就追过去”，<code>kd_pitch</code>
+        负责“看到正在快速倒下就提前刹住”。第一版不用 yaw，也不建议用 I 项。
+      </p>
+
+      <p class="note">
+        更精确的物理模型会输出轮子力矩，而你当前系统通过
+        <code>velocity_controllers/JointGroupVelocityController</code> 接收轮速命令。
+        因此第一版控制器输出的是“期望轮子角速度”，不是直接输出电机力矩。
+      </p>
+    </section>
+
+    <section id="code-map">
+      <h2>代码变量对应物理量</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>代码变量</th>
+            <th>物理量</th>
+            <th>作用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>pitch</code></td>
+            <td>车身前后倾角</td>
+            <td>判断重心偏在支撑点前方还是后方</td>
+          </tr>
+          <tr>
+            <td><code>pitch_rate</code></td>
+            <td>车身倾倒角速度</td>
+            <td>提供阻尼，避免越调越抖</td>
+          </tr>
+          <tr>
+            <td><code>kp_pitch</code></td>
+            <td>姿态刚度</td>
+            <td>倾角越大，轮轴追得越快</td>
+          </tr>
+          <tr>
+            <td><code>kd_pitch</code></td>
+            <td>姿态阻尼</td>
+            <td>倾倒越快，反向抑制越强</td>
+          </tr>
+          <tr>
+            <td><code>output_sign</code></td>
+            <td>方向约定修正</td>
+            <td>匹配 IMU pitch 正方向和轮速正方向</td>
+          </tr>
+          <tr>
+            <td><code>max_wheel_velocity</code></td>
+            <td>轮速饱和</td>
+            <td>避免轮子瞬间打满导致打滑或仿真震荡</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="danger">
+        调试时最重要的是先确认方向：车向前倒，轮子应该向前追；车向后倒，轮子应该向后追。
+        如果方向反了，先改 <code>output_sign</code>，不要急着改 PID 参数。
+      </p>
+    </section>
+  </main>
+</body>
+</html>

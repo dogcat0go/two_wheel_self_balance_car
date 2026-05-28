@@ -33,7 +33,7 @@
     -->
     <model name="front_pitch_support">
       <static>true</static>
-      <pose>0.055 0 0.105 0 0 0</pose>
+      <pose>0.065 0 0.105 0 0 0</pose>
       <link name="link">
         <visual name="visual">
           <geometry>
@@ -58,7 +58,7 @@
 
     <model name="rear_pitch_support">
       <static>true</static>
-      <pose>-0.055 0 0.105 0 0 0</pose>
+      <pose>-0.065 0 0.105 0 0 0</pose>
       <link name="link">
         <visual name="visual">
           <geometry>

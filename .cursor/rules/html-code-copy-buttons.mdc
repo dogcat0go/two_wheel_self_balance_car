@@ -1,0 +1,26 @@
+---
+description: Add copy buttons to code blocks in generated HTML docs
+globs: **/*.html
+alwaysApply: false
+---
+
+# HTML Code Copy Buttons
+
+When creating or updating HTML documentation that contains code snippets, add a copy button in the upper-right corner of each code block.
+
+Requirements:
+
+- Wrap code snippets in a relatively positioned container, for example `<div class="code-block">`.
+- Place a visible copy button at the upper-right corner of the container.
+- Add JavaScript that copies the text content of the corresponding `pre code` block to the clipboard.
+- The button should give short feedback after copying, such as changing text from `复制` to `已复制`.
+- Keep the feature self-contained in the HTML file with inline CSS and JavaScript unless the project already has a shared HTML asset pattern.
+
+Example structure:
+
+```html
+<div class="code-block">
+  <button class="copy-button" type="button">复制</button>
+  <pre><code>example command</code></pre>
+</div>
+```

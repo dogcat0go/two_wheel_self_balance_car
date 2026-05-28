@@ -1,0 +1,1067 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>平衡环代码结构拆解：PD 内环与可扩展串级控制</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #667085;
+      --line: #d8dee9;
+      --blue: #2563eb;
+      --green: #0f766e;
+      --orange: #b45309;
+      --purple: #6d28d9;
+      --code-bg: #111827;
+      --code-ink: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.65;
+    }
+
+    header {
+      background: linear-gradient(135deg, #111827, #2563eb);
+      color: white;
+      padding: 42px 24px;
+    }
+
+    header .wrap,
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.2;
+    }
+
+    header p {
+      max-width: 900px;
+      margin: 0;
+      color: #dbeafe;
+      font-size: 18px;
+    }
+
+    main {
+      padding: 28px 20px 56px;
+    }
+
+    section,
+    nav,
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 28px rgb(15 23 42 / 6%);
+    }
+
+    section,
+    nav {
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 25px;
+    }
+
+    h3 {
+      margin: 22px 0 10px;
+      font-size: 19px;
+    }
+
+    p {
+      margin: 10px 0;
+    }
+
+    code {
+      border-radius: 6px;
+      background: #eef2ff;
+      color: #3730a3;
+      padding: 2px 6px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow: auto;
+      border-radius: 12px;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      padding: 18px;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+    }
+
+    ul,
+    ol {
+      padding-left: 1.35rem;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc a {
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #f8fafc;
+      color: var(--blue);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      padding: 16px;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .tag {
+      display: inline-block;
+      margin: 4px 6px 4px 0;
+      border-radius: 999px;
+      background: #e0f2fe;
+      color: #075985;
+      padding: 3px 10px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .tag.green {
+      background: #ccfbf1;
+      color: #115e59;
+    }
+
+    .tag.orange {
+      background: #ffedd5;
+      color: #9a3412;
+    }
+
+    .tag.purple {
+      background: #ede9fe;
+      color: #5b21b6;
+    }
+
+    .note {
+      border-left: 5px solid var(--blue);
+      background: #eff6ff;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #1e3a8a;
+    }
+
+    .warning {
+      border-left: 5px solid var(--orange);
+      background: #fff7ed;
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: #7c2d12;
+    }
+
+    .flow {
+      display: grid;
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .flow-step {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #f8fafc;
+      padding: 14px 16px;
+    }
+
+    .flow-step::after {
+      content: "↓";
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .flow-step:last-child::after {
+      content: "";
+      margin: 0;
+    }
+
+    .flow-step strong {
+      color: var(--green);
+    }
+
+    .code-block {
+      position: relative;
+      margin: 14px 0;
+    }
+
+    .copy-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 2;
+      border: 1px solid #475569;
+      border-radius: 8px;
+      background: #1f2937;
+      color: #f8fafc;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .copy-button:hover {
+      background: #374151;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>平衡环代码结构拆解：PD 内环先独立</h1>
+      <p>
+        这是一套简化版代码架构。核心原则是：ROS 通信、状态估计、安全限幅、轮子输出和 PD 控制器分开。
+        后续要加入速度环、位置环、yaw 环或串级 PID 时，只扩展控制层，不推翻节点主流程。
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <nav aria-label="页面目录">
+      <h2>目录</h2>
+      <ul class="toc">
+        <li><a href="#target">设计目标</a></li>
+        <li><a href="#layers">分层结构</a></li>
+        <li><a href="#files">文件拆分</a></li>
+        <li><a href="#interfaces">核心数据结构</a></li>
+        <li><a href="#pd">PD 内环</a></li>
+        <li><a href="#node">节点主流程</a></li>
+        <li><a href="#cascade">后续串级扩展</a></li>
+        <li><a href="#complete-code">完整代码清单</a></li>
+        <li><a href="#install">安装与运行</a></li>
+      </ul>
+    </nav>
+
+    <section id="target">
+      <h2>设计目标</h2>
+      <p>
+        第一版只解决“站住”的问题：用 IMU 的 <code>pitch</code> 和 <code>pitch_rate</code>
+        计算左右轮同向角速度。它不处理速度目标、不处理位置目标、不处理 yaw 转向。
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <h3>PD 控制独立</h3>
+          <p><code>BalancePDController</code> 只接收状态和参数，只输出一个前后方向轮速。</p>
+          <span class="tag green">可替换</span>
+        </div>
+
+        <div class="card">
+          <h3>ROS 节点只编排</h3>
+          <p>节点负责订阅、定时器、发布和参数加载，不把控制算法写死在回调里。</p>
+          <span class="tag">清晰边界</span>
+        </div>
+
+        <div class="card">
+          <h3>预留串级控制</h3>
+          <p>速度环以后只需要输出 <code>pitch_target</code>，再交给姿态 PD 内环。</p>
+          <span class="tag purple">可扩展</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="layers">
+      <h2>分层结构</h2>
+      <div class="flow">
+        <div class="flow-step">
+          <strong>ROS I/O 层</strong><br>
+          订阅 <code>/imu/data</code>，发布 <code>/wheel_velocity_controller/commands</code> 和 debug。
+        </div>
+
+        <div class="flow-step">
+          <strong>状态估计层</strong><br>
+          将 IMU quaternion 转成 <code>roll/pitch/yaw</code>，整理成 <code>BalanceState</code>。
+        </div>
+
+        <div class="flow-step">
+          <strong>控制算法层</strong><br>
+          当前只有 <code>BalancePDController</code>，后续加入速度环和位置环。
+        </div>
+
+        <div class="flow-step">
+          <strong>安全层</strong><br>
+          处理 IMU 超时、跌倒角、速度限幅、加速度限幅。
+        </div>
+
+        <div class="flow-step">
+          <strong>输出层</strong><br>
+          将一个平衡轮速 <code>balance_w</code> 转换成左右轮数组 <code>[left_w, right_w]</code>。
+        </div>
+      </div>
+    </section>
+
+    <section id="files">
+      <h2>文件拆分</h2>
+      <p>
+        先保持简单：所有文件仍放在 <code>src/balance_car_control/src</code>，通过
+        <code>ament_cmake install(PROGRAMS ...)</code> 安装可执行节点。
+      </p>
+
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>src/balance_car_control/
+  CMakeLists.txt
+  package.xml
+  src/
+    balance_controller_node.py   # ROS2 节点主流程
+    balance_types.py             # BalanceState / WheelCommand 数据结构
+    attitude_estimator.py        # IMU quaternion -> roll/pitch/yaw
+    balance_pd.py                # 只做姿态 PD 内环
+    safety_limiter.py            # 超时、跌倒、限速、限加速度
+    wheel_mixer.py               # balance_w + turn_w -> left/right
+  config/
+    balance_controller.yaml</code></pre>
+      </div>
+
+      <p class="note">
+        如果想再简化，第一阶段可以只创建 <code>balance_controller_node.py</code> 和
+        <code>balance_pd.py</code>。等逻辑稳定后，再把状态估计和安全限幅拆出去。
+      </p>
+    </section>
+
+    <section id="interfaces">
+      <h2>核心数据结构</h2>
+      <p>
+        数据结构的目的，是让控制器不依赖 ROS 消息。这样以后可以单独测试 PD、速度环、串级 PID。
+      </p>
+
+      <h3><code>balance_types.py</code></h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>#!/usr/bin/env python3
+
+from dataclasses import dataclass
+
+
+@dataclass
+class BalanceState:
+    stamp_sec: float
+    pitch: float
+    pitch_rate: float
+    yaw: float = 0.0
+    wheel_velocity: float = 0.0
+
+
+@dataclass
+class WheelCommand:
+    left: float
+    right: float
+
+
+@dataclass
+class BalanceDebug:
+    pitch: float
+    pitch_rate: float
+    pitch_target: float
+    balance_output: float
+    final_left: float
+    final_right: float
+    enabled: bool</code></pre>
+      </div>
+    </section>
+
+    <section id="pd">
+      <h2>PD 内环</h2>
+      <p>
+        <code>BalancePDController</code> 不知道 ROS，不知道轮子话题，也不处理限幅。
+        它只做一件事：根据 <code>pitch</code> 和 <code>pitch_rate</code> 输出一个平衡轮速。
+      </p>
+
+      <h3><code>balance_pd.py</code></h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>#!/usr/bin/env python3
+
+from dataclasses import dataclass
+
+from balance_types import BalanceState
+
+
+@dataclass
+class BalancePDConfig:
+    kp_pitch: float = 2.0
+    kd_pitch: float = 0.12
+    pitch_target: float = 0.0
+    output_sign: float = 1.0
+
+
+class BalancePDController:
+    def __init__(self, config: BalancePDConfig):
+        self.config = config
+
+    def compute(self, state: BalanceState) -&gt; float:
+        pitch_error = state.pitch - self.config.pitch_target
+
+        # D 项直接使用 IMU gyro_y，不对 pitch 做差分，避免放大噪声。
+        raw_output = (
+            self.config.kp_pitch * pitch_error
+            - self.config.kd_pitch * state.pitch_rate
+        )
+
+        return self.config.output_sign * raw_output</code></pre>
+      </div>
+
+      <p class="warning">
+        注意：PD 输出的正负方向不一定第一次就对。如果车向前倒时轮子反向跑，只改
+        <code>output_sign</code>，不要同时改 <code>kp_pitch</code> 或 <code>kd_pitch</code>。
+      </p>
+    </section>
+
+    <section id="node">
+      <h2>节点主流程</h2>
+      <p>
+        节点只做编排：读取最新状态、调用控制器、经过安全限幅、混合左右轮、发布命令。
+      </p>
+
+      <h3><code>balance_controller_node.py</code> 主循环骨架</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>def on_timer(self):
+    state = self.state_estimator.latest_state()
+
+    if not self.safety.is_state_valid(state):
+        self.publish_wheels(0.0, 0.0)
+        return
+
+    # 第一阶段：pitch PD 内环直接输出平衡轮速。
+    balance_w = self.balance_pd.compute(state)
+
+    # 预留：未来 turn_w 来自 yaw 控制或 cmd_vel。
+    turn_w = 0.0
+
+    left_w, right_w = self.wheel_mixer.mix(balance_w, turn_w)
+    left_w, right_w = self.safety.limit_command(left_w, right_w)
+
+    if self.enabled:
+        self.publish_wheels(left_w, right_w)
+    else:
+        self.publish_wheels(0.0, 0.0)
+
+    self.publish_debug(state, balance_w, left_w, right_w)</code></pre>
+      </div>
+
+      <h3>最小节点参数</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>balance_controller_node:
+  ros__parameters:
+    use_sim_time: true
+    enabled: false
+    imu_topic: /imu/data
+    command_topic: /wheel_velocity_controller/commands
+    debug_topic: /balance_controller/debug
+    control_rate: 200.0
+
+    # PD 内环
+    pitch_target: 0.0
+    kp_pitch: 2.0
+    kd_pitch: 0.12
+    output_sign: 1.0
+
+    # 安全限制
+    max_wheel_velocity: 3.0
+    max_wheel_accel: 60.0
+    fall_angle_rad: 0.61
+    imu_timeout_sec: 0.05</code></pre>
+      </div>
+    </section>
+
+    <section id="cascade">
+      <h2>后续串级扩展</h2>
+      <p>
+        串级 PID 的关键是：外环不要直接控制轮子。外环应该输出内环目标。
+        对平衡车来说，速度环输出 <code>pitch_target</code>，姿态环再输出轮速。
+      </p>
+
+      <h3>第一阶段：只有姿态内环</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>pitch_target = 0.0
+balance_w = balance_pd.compute(state)</code></pre>
+      </div>
+
+      <h3>第二阶段：速度环 + 姿态环</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>velocity_error = target_velocity - measured_velocity
+pitch_target = velocity_pid.compute(velocity_error, dt)
+pitch_target = clamp(pitch_target, -max_pitch_target, max_pitch_target)
+
+state.pitch_target = pitch_target
+balance_w = balance_pd.compute(state)</code></pre>
+      </div>
+
+      <h3>第三阶段：位置环 + 速度环 + 姿态环</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>position_error = target_position - measured_position
+target_velocity = position_pid.compute(position_error, dt)
+target_velocity = clamp(target_velocity, -max_target_velocity, max_target_velocity)
+
+velocity_error = target_velocity - measured_velocity
+pitch_target = velocity_pid.compute(velocity_error, dt)
+pitch_target = clamp(pitch_target, -max_pitch_target, max_pitch_target)
+
+state.pitch_target = pitch_target
+balance_w = balance_pd.compute(state)</code></pre>
+      </div>
+
+      <h3>yaw 转向混合</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>turn_w = yaw_controller.compute(yaw_error, yaw_rate)
+
+left_w = balance_w - turn_w
+right_w = balance_w + turn_w</code></pre>
+      </div>
+
+      <p class="note">
+        推荐扩展顺序：先姿态 PD 站住，再加轮速阻尼，再加速度环，最后加位置环和 yaw 转向。
+      </p>
+    </section>
+
+    <section id="complete-code">
+      <h2>完整代码清单</h2>
+      <p>
+        下面是一套可以按文件创建的完整版本。它仍然保持简化：只有姿态 PD 内环，
+        但文件边界已经为后续速度环、位置环、yaw 环和串级 PID 预留好了。
+      </p>
+
+      <h3><code>src/balance_car_control/src/balance_types.py</code></h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>#!/usr/bin/env python3
+
+from dataclasses import dataclass
+
+
+@dataclass
+class BalanceState:
+    stamp_sec: float
+    pitch: float
+    pitch_rate: float
+    yaw: float = 0.0
+    wheel_velocity: float = 0.0
+
+
+@dataclass
+class WheelCommand:
+    left: float
+    right: float
+
+
+@dataclass
+class BalanceDebug:
+    pitch: float
+    pitch_rate: float
+    pitch_target: float
+    balance_output: float
+    final_left: float
+    final_right: float
+    enabled: bool</code></pre>
+      </div>
+
+      <h3><code>src/balance_car_control/src/attitude_estimator.py</code></h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>#!/usr/bin/env python3
+
+import math
+
+from balance_types import BalanceState
+
+
+def quaternion_to_euler(x, y, z, w):
+    sinr_cosp = 2.0 * (w * x + y * z)
+    cosr_cosp = 1.0 - 2.0 * (x * x + y * y)
+    roll = math.atan2(sinr_cosp, cosr_cosp)
+
+    sinp = 2.0 * (w * y - z * x)
+    if abs(sinp) &gt;= 1.0:
+        pitch = math.copysign(math.pi / 2.0, sinp)
+    else:
+        pitch = math.asin(sinp)
+
+    siny_cosp = 2.0 * (w * z + x * y)
+    cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
+    yaw = math.atan2(siny_cosp, cosy_cosp)
+
+    return roll, pitch, yaw
+
+
+class AttitudeEstimator:
+    def __init__(self):
+        self._latest_state = None
+
+    def update_from_imu(self, imu_msg, stamp_sec):
+        q = imu_msg.orientation
+        _, pitch, yaw = quaternion_to_euler(q.x, q.y, q.z, q.w)
+
+        self._latest_state = BalanceState(
+            stamp_sec=stamp_sec,
+            pitch=pitch,
+            pitch_rate=imu_msg.angular_velocity.y,
+            yaw=yaw,
+        )
+
+    def latest_state(self):
+        return self._latest_state</code></pre>
+      </div>
+
+      <h3><code>src/balance_car_control/src/balance_pd.py</code></h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>#!/usr/bin/env python3
+
+from dataclasses import dataclass
+
+from balance_types import BalanceState
+
+
+@dataclass
+class BalancePDConfig:
+    kp_pitch: float = 2.0
+    kd_pitch: float = 0.12
+    pitch_target: float = 0.0
+    output_sign: float = 1.0
+
+
+class BalancePDController:
+    def __init__(self, config: BalancePDConfig):
+        self.config = config
+
+    def set_pitch_target(self, pitch_target):
+        self.config.pitch_target = pitch_target
+
+    def compute(self, state: BalanceState):
+        pitch_error = state.pitch - self.config.pitch_target
+
+        # D 项使用 IMU gyro_y，避免对 pitch 做差分带来噪声。
+        raw_output = (
+            self.config.kp_pitch * pitch_error
+            - self.config.kd_pitch * state.pitch_rate
+        )
+
+        return self.config.output_sign * raw_output</code></pre>
+      </div>
+
+      <h3><code>src/balance_car_control/src/wheel_mixer.py</code></h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>#!/usr/bin/env python3
+
+from balance_types import WheelCommand
+
+
+class WheelMixer:
+    def mix(self, balance_w, turn_w=0.0):
+        return WheelCommand(
+            left=balance_w - turn_w,
+            right=balance_w + turn_w,
+        )</code></pre>
+      </div>
+
+      <h3><code>src/balance_car_control/src/safety_limiter.py</code></h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>#!/usr/bin/env python3
+
+from dataclasses import dataclass
+
+from balance_types import WheelCommand
+
+
+def clamp(value, lower, upper):
+    return max(lower, min(upper, value))
+
+
+@dataclass
+class SafetyConfig:
+    max_wheel_velocity: float = 3.0
+    max_wheel_accel: float = 60.0
+    fall_angle_rad: float = 0.61
+    imu_timeout_sec: float = 0.05
+
+
+class SafetyLimiter:
+    def __init__(self, config: SafetyConfig):
+        self.config = config
+        self._last_left = 0.0
+        self._last_right = 0.0
+
+    def reset(self):
+        self._last_left = 0.0
+        self._last_right = 0.0
+
+    def is_state_valid(self, state, now_sec):
+        if state is None:
+            return False
+
+        if now_sec - state.stamp_sec &gt; self.config.imu_timeout_sec:
+            return False
+
+        if abs(state.pitch) &gt; self.config.fall_angle_rad:
+            return False
+
+        return True
+
+    def _limit_one(self, target, previous, dt):
+        velocity_limit = abs(self.config.max_wheel_velocity)
+        saturated = clamp(target, -velocity_limit, velocity_limit)
+
+        max_delta = abs(self.config.max_wheel_accel) * max(dt, 0.0)
+        delta = clamp(saturated - previous, -max_delta, max_delta)
+        return previous + delta
+
+    def limit_command(self, command: WheelCommand, dt):
+        left = self._limit_one(command.left, self._last_left, dt)
+        right = self._limit_one(command.right, self._last_right, dt)
+
+        self._last_left = left
+        self._last_right = right
+
+        return WheelCommand(left=left, right=right)</code></pre>
+      </div>
+
+      <h3><code>src/balance_car_control/src/balance_controller_node.py</code></h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>#!/usr/bin/env python3
+
+import math
+
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Imu
+from std_msgs.msg import Float64MultiArray
+
+from attitude_estimator import AttitudeEstimator
+from balance_pd import BalancePDConfig, BalancePDController
+from safety_limiter import SafetyConfig, SafetyLimiter
+from wheel_mixer import WheelMixer
+
+
+class BalanceControllerNode(Node):
+    def __init__(self):
+        super().__init__("balance_controller_node")
+
+        self.declare_parameter("enabled", False)
+        self.declare_parameter("imu_topic", "/imu/data")
+        self.declare_parameter("command_topic", "/wheel_velocity_controller/commands")
+        self.declare_parameter("debug_topic", "/balance_controller/debug")
+        self.declare_parameter("control_rate", 200.0)
+
+        self.declare_parameter("pitch_target", 0.0)
+        self.declare_parameter("kp_pitch", 2.0)
+        self.declare_parameter("kd_pitch", 0.12)
+        self.declare_parameter("output_sign", 1.0)
+
+        self.declare_parameter("max_wheel_velocity", 3.0)
+        self.declare_parameter("max_wheel_accel", 60.0)
+        self.declare_parameter("fall_angle_rad", 0.61)
+        self.declare_parameter("imu_timeout_sec", 0.05)
+
+        self.enabled = bool(self.get_parameter("enabled").value)
+
+        pd_config = BalancePDConfig(
+            kp_pitch=float(self.get_parameter("kp_pitch").value),
+            kd_pitch=float(self.get_parameter("kd_pitch").value),
+            pitch_target=float(self.get_parameter("pitch_target").value),
+            output_sign=float(self.get_parameter("output_sign").value),
+        )
+        safety_config = SafetyConfig(
+            max_wheel_velocity=float(self.get_parameter("max_wheel_velocity").value),
+            max_wheel_accel=float(self.get_parameter("max_wheel_accel").value),
+            fall_angle_rad=float(self.get_parameter("fall_angle_rad").value),
+            imu_timeout_sec=float(self.get_parameter("imu_timeout_sec").value),
+        )
+
+        self.estimator = AttitudeEstimator()
+        self.balance_pd = BalancePDController(pd_config)
+        self.safety = SafetyLimiter(safety_config)
+        self.wheel_mixer = WheelMixer()
+
+        self.command_pub = self.create_publisher(
+            Float64MultiArray,
+            self.get_parameter("command_topic").value,
+            10,
+        )
+        self.debug_pub = self.create_publisher(
+            Float64MultiArray,
+            self.get_parameter("debug_topic").value,
+            10,
+        )
+        self.create_subscription(
+            Imu,
+            self.get_parameter("imu_topic").value,
+            self.on_imu,
+            20,
+        )
+
+        self.last_control_time = self.get_clock().now()
+        control_rate = float(self.get_parameter("control_rate").value)
+        self.create_timer(1.0 / control_rate, self.on_timer)
+
+        self.get_logger().warn(
+            "Balance controller started. enabled={} kp={:.3f} kd={:.3f}".format(
+                self.enabled,
+                pd_config.kp_pitch,
+                pd_config.kd_pitch,
+            )
+        )
+
+    def now_sec(self):
+        return self.get_clock().now().nanoseconds / 1e9
+
+    def on_imu(self, msg):
+        self.estimator.update_from_imu(msg, self.now_sec())
+
+    def publish_wheels(self, left, right):
+        self.command_pub.publish(Float64MultiArray(data=[left, right]))
+
+    def stop_wheels(self):
+        self.safety.reset()
+        self.publish_wheels(0.0, 0.0)
+
+    def publish_debug(self, state, balance_output, left, right):
+        if state is None:
+            return
+
+        self.debug_pub.publish(Float64MultiArray(data=[
+            state.pitch,
+            state.pitch_rate,
+            self.balance_pd.config.pitch_target,
+            balance_output,
+            left,
+            right,
+            1.0 if self.enabled else 0.0,
+            state.yaw,
+        ]))
+
+    def on_timer(self):
+        now = self.get_clock().now()
+        dt = (now - self.last_control_time).nanoseconds / 1e9
+        self.last_control_time = now
+
+        state = self.estimator.latest_state()
+        if not self.safety.is_state_valid(state, self.now_sec()):
+            if state is not None and abs(state.pitch) &gt; self.safety.config.fall_angle_rad:
+                self.get_logger().warn(
+                    "Fall angle reached: pitch={:.2f} deg".format(math.degrees(state.pitch)),
+                    throttle_duration_sec=1.0,
+                )
+            self.stop_wheels()
+            return
+
+        balance_w = self.balance_pd.compute(state)
+
+        # 第一阶段不做转向。未来 yaw 环或 cmd_vel 可以在这里生成 turn_w。
+        turn_w = 0.0
+        mixed_command = self.wheel_mixer.mix(balance_w, turn_w)
+        safe_command = self.safety.limit_command(mixed_command, dt)
+
+        if self.enabled:
+            self.publish_wheels(safe_command.left, safe_command.right)
+        else:
+            self.stop_wheels()
+            safe_command.left = 0.0
+            safe_command.right = 0.0
+
+        self.publish_debug(
+            state=state,
+            balance_output=balance_w,
+            left=safe_command.left,
+            right=safe_command.right,
+        )
+
+
+def main():
+    rclpy.init()
+    node = BalanceControllerNode()
+    try:
+        rclpy.spin(node)
+    finally:
+        node.stop_wheels()
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()</code></pre>
+      </div>
+
+      <h3><code>src/balance_car_control/config/balance_controller.yaml</code></h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>balance_controller_node:
+  ros__parameters:
+    use_sim_time: true
+    enabled: false
+
+    imu_topic: /imu/data
+    command_topic: /wheel_velocity_controller/commands
+    debug_topic: /balance_controller/debug
+    control_rate: 200.0
+
+    pitch_target: 0.0
+    kp_pitch: 2.0
+    kd_pitch: 0.12
+    output_sign: 1.0
+
+    max_wheel_velocity: 3.0
+    max_wheel_accel: 60.0
+    fall_angle_rad: 0.61
+    imu_timeout_sec: 0.05</code></pre>
+      </div>
+
+      <h3><code>CMakeLists.txt</code> 安装片段</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>install(PROGRAMS
+  src/balance_controller_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(FILES
+  src/balance_types.py
+  src/attitude_estimator.py
+  src/balance_pd.py
+  src/safety_limiter.py
+  src/wheel_mixer.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  config
+  DESTINATION share/${PROJECT_NAME}
+)</code></pre>
+      </div>
+
+      <p class="warning">
+        这套代码假设这些 Python 模块和 <code>balance_controller_node.py</code>
+        最终被安装到同一个目录 <code>install/balance_car_control/lib/balance_car_control</code>。
+        这样节点脚本可以直接 <code>from balance_pd import ...</code>。
+      </p>
+    </section>
+
+    <section id="install">
+      <h2>安装与运行</h2>
+      <h3>CMake 安装</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>install(PROGRAMS
+  src/balance_controller_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)</code></pre>
+      </div>
+
+      <h3>构建运行</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>colcon build --packages-select balance_car_control
+source install/setup.bash
+
+ros2 run balance_car_control balance_controller_node \
+  --ros-args \
+  --params-file src/balance_car_control/config/balance_controller.yaml</code></pre>
+      </div>
+
+      <h3>观察调试量</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code># 建议 debug 数组顺序：
+# data[0] pitch
+# data[1] pitch_rate
+# data[2] pitch_target
+# data[3] balance_output
+# data[4] final_left
+# data[5] final_right
+# data[6] enabled
+rqt_plot /balance_controller/debug/data[0] \
+         /balance_controller/debug/data[1] \
+         /balance_controller/debug/data[3]</code></pre>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    document.querySelectorAll(".code-block").forEach((block) => {
+      const button = block.querySelector(".copy-button");
+      const code = block.querySelector("pre code");
+
+      if (!button || !code) {
+        return;
+      }
+
+      button.addEventListener("click", async () => {
+        const originalText = button.textContent;
+        try {
+          await navigator.clipboard.writeText(code.textContent);
+          button.textContent = "已复制";
+        } catch (error) {
+          const textArea = document.createElement("textarea");
+          textArea.value = code.textContent;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand("copy");
+          document.body.removeChild(textArea);
+          button.textContent = "已复制";
+        }
+
+        window.setTimeout(() => {
+          button.textContent = originalText;
+        }, 1200);
+      });
+    });
+  </script>
+</body>
+</html>

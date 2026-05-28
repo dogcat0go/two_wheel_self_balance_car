@@ -7,7 +7,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 import xacro
 
@@ -31,12 +31,15 @@ def generate_launch_description():
 
     # Paths
     urdf_xacro = os.path.join(pkg_dir, "urdf", "two_wheel_balance_65mm.urdf.xacro")
-    world_file = os.path.join(pkg_dir, "worlds", "imu_debug.world")
-
+    # world_file = os.path.join(pkg_dir, "worlds", "imu_debug.world")
+    world_file = os.path.join(pkg_dir, "worlds", "empty.world")
     use_sim_time = LaunchConfiguration("use_sim_time", default="true")
     use_rviz = LaunchConfiguration("use_rviz", default="true")
     world = LaunchConfiguration("world", default=world_file)
     pause = LaunchConfiguration("pause", default="false")
+    # "effort" or "velocity". URDF 与 ros2_control yaml 同时暴露两套接口，
+    # 这里决定 spawner 启动哪一个（另一条仍可手动 ros2 control load_controller 拉起）。
+    controller_type = LaunchConfiguration("controller_type", default="effort")
 
     # Generate a clean robot_description once. Gazebo Humble can fail if the
     # full XML declaration/comment block is passed through ROS parameter args.
@@ -87,11 +90,24 @@ def generate_launch_description():
         output="screen",
     )
 
-    load_wheel_ctrl = Node(
+    load_wheel_velocity_ctrl = Node(
         package="controller_manager",
         executable="spawner",
         arguments=["wheel_velocity_controller", "--switch-timeout", "20.0"],
         output="screen",
+        condition=IfCondition(
+            PythonExpression(["'", controller_type, "' == 'velocity'"])
+        ),
+    )
+
+    load_wheel_effort_ctrl = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=["wheel_effort_controller", "--switch-timeout", "20.0"],
+        output="screen",
+        condition=IfCondition(
+            PythonExpression(["'", controller_type, "' == 'effort'"])
+        ),
     )
 
     load_imu_bc = Node(
@@ -115,11 +131,17 @@ def generate_launch_description():
         DeclareLaunchArgument("use_rviz", default_value="true"),
         DeclareLaunchArgument("world", default_value=world_file),
         DeclareLaunchArgument("pause", default_value="false"),
+        DeclareLaunchArgument(
+            "controller_type",
+            default_value="effort",
+            description="Which wheel controller to spawn: 'effort' or 'velocity'.",
+        ),
         gazebo,
         robot_state_pub,
         spawn_entity,
         load_joint_state_bc,
-        load_wheel_ctrl,
+        load_wheel_velocity_ctrl,
+        load_wheel_effort_ctrl,
         load_imu_bc,
         # rviz,
     ])

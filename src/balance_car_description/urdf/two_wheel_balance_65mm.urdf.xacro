@@ -18,9 +18,9 @@
   <!-- Main body. Its center of mass is deliberately above the axle. -->
   <xacro:property name="body_length" value="0.085"/>
   <xacro:property name="body_width" value="0.054"/>
-  <xacro:property name="body_height" value="0.130"/>
+  <xacro:property name="body_height" value="0.090"/>
   <xacro:property name="body_mass" value="0.420"/>
-  <xacro:property name="body_com_z" value="0.075"/>
+  <xacro:property name="body_com_z" value="0.045"/>
 
   <!-- Internal components represented as separate fixed masses. -->
   <xacro:property name="motor_radius" value="0.012"/>
@@ -29,21 +29,21 @@
   <xacro:property name="motor_y" value="${wheel_separation / 2.0 - wheel_width / 2.0 - motor_length / 2.0}"/>
 
   <xacro:property name="battery_x" value="-0.010"/>
-  <xacro:property name="battery_z" value="0.035"/>
+  <xacro:property name="battery_z" value="0.025"/>
   <xacro:property name="battery_length" value="0.052"/>
   <xacro:property name="battery_width" value="0.034"/>
   <xacro:property name="battery_height" value="0.018"/>
   <xacro:property name="battery_mass" value="0.085"/>
 
   <xacro:property name="board_x" value="0.008"/>
-  <xacro:property name="board_z" value="0.110"/>
+  <xacro:property name="board_z" value="0.070"/>
   <xacro:property name="board_length" value="0.055"/>
   <xacro:property name="board_width" value="0.038"/>
   <xacro:property name="board_height" value="0.006"/>
   <xacro:property name="board_mass" value="0.025"/>
 
   <xacro:property name="imu_x" value="0.010"/>
-  <xacro:property name="imu_z" value="0.138"/>
+  <xacro:property name="imu_z" value="0.090"/>
   <xacro:property name="imu_length" value="0.018"/>
   <xacro:property name="imu_width" value="0.018"/>
   <xacro:property name="imu_height" value="0.006"/>
@@ -303,8 +303,8 @@
 
   <gazebo reference="left_wheel_link">
     <material>Gazebo/Black</material>
-    <mu1>1.45</mu1>
-    <mu2>0.85</mu2>
+    <mu1>1.0</mu1>
+    <mu2>0.6</mu2>
     <kp>1000000.0</kp>
     <kd>4.0</kd>
     <minDepth>0.001</minDepth>
@@ -313,8 +313,8 @@
 
   <gazebo reference="right_wheel_link">
     <material>Gazebo/Black</material>
-    <mu1>1.45</mu1>
-    <mu2>0.85</mu2>
+    <mu1>1.0</mu1>
+    <mu2>0.6</mu2>
     <kp>1000000.0</kp>
     <kd>4.0</kd>
     <minDepth>0.001</minDepth>
@@ -418,8 +418,13 @@
         <param name="min">${-wheel_velocity_limit}</param>
         <param name="max">${wheel_velocity_limit}</param>
       </command_interface>
+      <command_interface name="effort">
+        <param name="min">${-wheel_effort_limit}</param>
+        <param name="max">${wheel_effort_limit}</param>
+      </command_interface>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
+      <state_interface name="effort"/>
       <param name="mechanical_reduction">${motor_gear_ratio}</param>
     </joint>
 
@@ -428,8 +433,13 @@
         <param name="min">${-wheel_velocity_limit}</param>
         <param name="max">${wheel_velocity_limit}</param>
       </command_interface>
+      <command_interface name="effort">
+        <param name="min">${-wheel_effort_limit}</param>
+        <param name="max">${wheel_effort_limit}</param>
+      </command_interface>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
+      <state_interface name="effort"/>
       <param name="mechanical_reduction">${motor_gear_ratio}</param>
     </joint>
 

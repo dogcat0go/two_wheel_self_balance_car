@@ -29,4 +29,25 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
+install(PROGRAMS
+  src/balance_controller_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME balance_controller_node
+)
+
+install(FILES
+  src/balance_types.py
+  src/attitude_estimator.py
+  src/balance_pd.py
+  src/safety_limiter.py
+  src/wheel_mixer.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  config
+  launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
 ament_package()

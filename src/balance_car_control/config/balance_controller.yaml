@@ -13,9 +13,11 @@ balance_controller_node:
     # 详细数据交给 PlotJuggler/rosbag，不靠 stdout。
     log_period_sec: 0.05
 
-    pitch_target: -0.012
-    # max_wheel_effort=0.12 时的初始保守参数，先验证物理可行域内的稳定性。
-    # 调通后再回到 kp/kd 系统化扫频（Z-N 法）。
+    # 串级开启后，pitch_target 只当"额外偏置"，一般留 0：
+    # 让外环速度环的积分自动累积到抵消质心/IMU 零偏的那个角度。
+    pitch_target: -0.011
+    # 内环=角度 PD（kp/kd）。串级下 kv_wheel 必须为 0：
+    # 轮速由外环负责，内环再插一手 kv 会和外环打架。
     kp_pitch: 1.0
     kd_pitch: 0.05
     kv_wheel: 0.0
@@ -37,3 +39,20 @@ balance_controller_node:
     # 0.3 表示每帧只采纳 30% 新值，明显平滑；嫌滞后可调到 0.5，要更稳可降到 0.2。
     # 设 1.0 等于关闭滤波（回到原始行为）。
     wheel_velocity_lpf_alpha: 0.3
+
+    # ===== 串级外环：速度环（输出 pitch_target 给内环）=====
+    # 调参顺序：先把内环(kp_pitch/kd_pitch)单独调到能短暂站立，
+    # 再开外环、从小往大加 kp_v、ki_v。
+    velocity_loop_enabled: true
+    # kp_v：轮速误差 -> 目标倾角的比例。先小，0.003~0.008 起步。
+    kp_v: 0.017
+    # ki_v：积分，消除稳态漂移 + 自动找平质心零偏。太大易低频晃动。
+    ki_v: 0.00075
+    # 期望轮速：站立平衡=0；以后做"前进/后退"在这里给非零(rad/s)。
+    target_velocity: 0.0
+    # 外环能要求的最大倾角(rad)，保护内环不被拉爆。0.12rad≈6.9°。
+    pitch_target_limit: 0.12
+    # 积分项 anti-windup 限幅(rad)，与 pitch_target 同单位。
+    velocity_integral_limit: 0.12
+    # 符号开关：若开外环后"漂移反而被加速"，把它改成 -1.0 翻转。
+    velocity_output_sign: -1.0

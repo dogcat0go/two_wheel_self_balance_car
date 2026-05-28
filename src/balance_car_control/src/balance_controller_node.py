@@ -10,6 +10,7 @@ from std_msgs.msg import Float64MultiArray
 from attitude_estimator import AttitudeEstimator
 from balance_pd import BalancePDConfig, BalancePDController
 from safety_limiter import SafetyConfig, SafetyLimiter
+from velocity_loop import VelocityLoop, VelocityLoopConfig
 from wheel_mixer import WheelMixer
 
 
@@ -46,8 +47,22 @@ class BalanceControllerNode(Node):
         # 轮速一阶低通系数 (0, 1]。1.0=不滤波；越小越平滑但滞后越大。
         self.declare_parameter("wheel_velocity_lpf_alpha", 1.0)
 
+        # ---- 串级外环：速度环 ----
+        # 外环输出"目标倾角 pitch_target"喂给内环 PD，自动消除前冲/漂移。
+        # 启用外环后，内环的 kv_wheel 应设 0（速度由外环负责），pitch_target
+        # 当作"额外偏置"叠加在外环输出之上（一般留 0，让外环积分自动找平）。
+        self.declare_parameter("velocity_loop_enabled", True)
+        self.declare_parameter("kp_v", 0.005)
+        self.declare_parameter("ki_v", 0.002)
+        self.declare_parameter("target_velocity", 0.0)
+        self.declare_parameter("pitch_target_limit", 0.12)
+        self.declare_parameter("velocity_integral_limit", 0.12)
+        self.declare_parameter("velocity_output_sign", 1.0)
+
         self.enabled = bool(self.get_parameter("enabled").value)
         self.log_period_sec = float(self.get_parameter("log_period_sec").value)
+        # 内环 pitch_target 偏置（叠加在外环输出上）。外环开时一般留 0。
+        self.pitch_target_bias = float(self.get_parameter("pitch_target").value)
 
         pd_config = BalancePDConfig(
             kp_pitch=float(self.get_parameter("kp_pitch").value),
@@ -64,6 +79,15 @@ class BalanceControllerNode(Node):
             fall_angle_rad=float(self.get_parameter("fall_angle_rad").value),
             imu_timeout_sec=float(self.get_parameter("imu_timeout_sec").value),
         )
+        velocity_config = VelocityLoopConfig(
+            kp_v=float(self.get_parameter("kp_v").value),
+            ki_v=float(self.get_parameter("ki_v").value),
+            target_velocity=float(self.get_parameter("target_velocity").value),
+            pitch_target_limit=float(self.get_parameter("pitch_target_limit").value),
+            integral_limit=float(self.get_parameter("velocity_integral_limit").value),
+            output_sign=float(self.get_parameter("velocity_output_sign").value),
+            enabled=bool(self.get_parameter("velocity_loop_enabled").value),
+        )
 
         self.estimator = AttitudeEstimator(
             wheel_velocity_lpf_alpha=float(
@@ -71,6 +95,7 @@ class BalanceControllerNode(Node):
             )
         )
         self.balance_pd = BalancePDController(pd_config)
+        self.velocity_loop = VelocityLoop(velocity_config)
         self.safety = SafetyLimiter(safety_config)
         self.wheel_mixer = WheelMixer()
 
@@ -138,6 +163,17 @@ class BalanceControllerNode(Node):
                 safety_config.imu_timeout_sec,
             )
         )
+        self.get_logger().info(
+            "Velocity loop (cascade outer): enabled={} kp_v={:.4f} ki_v={:.4f} "
+            "target_v={:.3f}rad/s pitch_target_limit={:.2f}deg sign={:.0f}".format(
+                velocity_config.enabled,
+                velocity_config.kp_v,
+                velocity_config.ki_v,
+                velocity_config.target_velocity,
+                math.degrees(velocity_config.pitch_target_limit),
+                velocity_config.output_sign,
+            )
+        )
         if abs(pd_config.output_sign) != 1.0:
             self.get_logger().warn(
                 "output_sign is {:.3f}. It is usually expected to be 1.0 or -1.0; "
@@ -189,9 +225,10 @@ class BalanceControllerNode(Node):
 
         self.last_log_time = now
         self.get_logger().info(
-            "pitch={:.2f}deg pitch_rate={:.3f}rad/s wheel_v={:.3f}rad/s "
+            "pitch={:.2f}deg pitch_tgt={:.2f}deg pitch_rate={:.3f}rad/s wheel_v={:.3f}rad/s "
             "balance_tau={:.3f}Nm cmd=[{:.3f}, {:.3f}]Nm enabled={} published={} count_timer={}".format(
                 math.degrees(state.pitch),
+                math.degrees(self.balance_pd.config.pitch_target),
                 state.pitch_rate,
                 state.wheel_velocity,
                 balance_tau,
@@ -225,10 +262,21 @@ class BalanceControllerNode(Node):
         state_valid, invalid_reason = self.safety.check_state(state, self.now_sec())
         if not state_valid:
             self.maybe_log_invalid_state(invalid_reason)
+            # 车已倒/数据失效：复位外环积分，避免积分饱和导致复位后甩头
+            self.velocity_loop.reset()
             self.stop_wheels()
             return
 
-        # PD 给出的是"让车体保持平衡所需的单轮力矩" [N·m]
+        # 串级外环（速度环）：根据轮速误差算出"目标倾角"喂给内环。
+        # 失能时不让积分继续累积（否则一 enable 就甩出去）。
+        if self.enabled:
+            pitch_target = self.velocity_loop.compute(state.wheel_velocity, dt)
+        else:
+            self.velocity_loop.reset()
+            pitch_target = 0.0
+        self.balance_pd.config.pitch_target = self.pitch_target_bias + pitch_target
+
+        # 内环 PD 给出的是"让车体保持平衡所需的单轮力矩" [N·m]
         balance_tau = self.balance_pd.compute(state)
 
         # 第一阶段不做转向。未来 yaw 环或 cmd_vel 可以在这里生成 turn_tau（差动力矩）。

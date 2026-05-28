@@ -28,7 +28,7 @@
   <xacro:property name="motor_mass" value="0.055"/>
   <xacro:property name="motor_y" value="${wheel_separation / 2.0 - wheel_width / 2.0 - motor_length / 2.0}"/>
 
-  <xacro:property name="battery_x" value="-0.010"/>
+  <xacro:property name="battery_x" value="0.0"/>
   <xacro:property name="battery_z" value="0.025"/>
   <xacro:property name="battery_length" value="0.052"/>
   <xacro:property name="battery_width" value="0.034"/>
@@ -344,7 +344,7 @@
       <!-- 200 Hz 已是工业级平衡车真车标准（MPU6050 默认 100~200 Hz）。
            降到 200 Hz 后 Python rclpy 单线程 executor 压力小很多，
            且仍是控制率 200 Hz 的 1x，足够 PD 计算。-->
-      <update_rate>200</update_rate>
+      <update_rate>400</update_rate>
       <visualize>false</visualize>
       <imu>
         <angular_velocity>

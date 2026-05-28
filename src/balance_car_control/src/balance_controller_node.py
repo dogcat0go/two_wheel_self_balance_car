@@ -43,6 +43,9 @@ class BalanceControllerNode(Node):
         self.declare_parameter("fall_angle_rad", 0.61)
         self.declare_parameter("imu_timeout_sec", 0.05)
 
+        # 轮速一阶低通系数 (0, 1]。1.0=不滤波；越小越平滑但滞后越大。
+        self.declare_parameter("wheel_velocity_lpf_alpha", 1.0)
+
         self.enabled = bool(self.get_parameter("enabled").value)
         self.log_period_sec = float(self.get_parameter("log_period_sec").value)
 
@@ -62,7 +65,11 @@ class BalanceControllerNode(Node):
             imu_timeout_sec=float(self.get_parameter("imu_timeout_sec").value),
         )
 
-        self.estimator = AttitudeEstimator()
+        self.estimator = AttitudeEstimator(
+            wheel_velocity_lpf_alpha=float(
+                self.get_parameter("wheel_velocity_lpf_alpha").value
+            )
+        )
         self.balance_pd = BalancePDController(pd_config)
         self.safety = SafetyLimiter(safety_config)
         self.wheel_mixer = WheelMixer()
@@ -211,7 +218,9 @@ class BalanceControllerNode(Node):
         now = self.get_clock().now()
         dt = (now - self.last_control_time).nanoseconds / 1e9
         self.last_control_time = now
-
+    # # dt clamp:抗 timer 抖动和 OS 卡顿
+    # # 下限 1ms 防止除零或异常小;上限 4×名义 防止积分跳变
+    # dt = max(1e-3, min(dt, 4 * self.control_period_nominal))
         state = self.estimator.latest_state()
         state_valid, invalid_reason = self.safety.check_state(state, self.now_sec())
         if not state_valid:

@@ -2,7 +2,7 @@
 Author: LCOIT dogcat.let@gmail.com
 Date: 2026-05-27 22:37:42
 LastEditors: LCOIT dogcat.let@gmail.com
-LastEditTime: 2026-05-28 02:17:54
+LastEditTime: 2026-05-29 03:59:22
 FilePath: /two_wheel_self_balance_car/src/balance_car_control/src/balance_pd.py
 Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 '''
@@ -22,17 +22,21 @@ class BalancePDConfig:
         kp_pitch  [N·m / rad]
         kd_pitch  [N·m / (rad/s)]
         kv_wheel  [N·m / (rad/s)]  —— 用轮速做软阻尼，抑制飞车
+        kx_position [m ]     —— 位置环增益,用于修正pitch_target
         min_balance_effort [N·m]   —— 死区外的最小力矩（克服静摩擦用）
     """
 
-    kp_pitch: float = 2.0
-    kd_pitch: float = 0.12
-    kv_wheel: float = 0.0
-    pitch_target: float = 0.0
+    kp_pitch: float = 1.0
+    kd_pitch: float = 0.05
+    kv_wheel: float = 0.01           # 之前 0.002 太小,提到 0.01
+    kx_position: float = 0.05        # 新增:位置环增益,先用这个起步
+    pitch_target: float = 0.0        # 配合 URDF 修正,先改回 0
     pitch_deadband: float = 0.0
     min_balance_effort: float = 0.0
     output_sign: float = 1.0
-
+    # 滤波/限幅
+    wheel_v_filter_tau: float = 0.025   # 一阶低通 ~6 Hz
+    max_position: float = 5.0           # 位置积分限幅 [rad],约 16 cm 位移
 
 class BalancePDController:
     def __init__(self, config: BalancePDConfig):

@@ -32,9 +32,15 @@ def quaternion_to_euler(x, y, z, w):
 
 
 class AttitudeEstimator:
-    def __init__(self):
+    def __init__(self, wheel_velocity_lpf_alpha=1.0):
+        """wheel_velocity_lpf_alpha: 轮速一阶低通系数 (0, 1]。
+        1.0 = 不滤波（原始值）；越小越平滑但滞后越大。
+        典型取 0.2~0.4，在抑制 joint_states 抖动和保留响应之间折中。
+        """
         self._latest_state = None
         self._wheel_velocity = 0.0
+        self._wheel_velocity_lpf_alpha = wheel_velocity_lpf_alpha
+        self._wheel_velocity_initialized = False
 
     def update_from_imu(self, imu_msg, stamp_sec):
         q = imu_msg.orientation
@@ -59,7 +65,18 @@ class AttitudeEstimator:
         if left is None or right is None:
             return
 
-        self._wheel_velocity = 0.5 * (left + right)
+        raw = 0.5 * (left + right)
+        # 一阶指数低通：alpha=1.0 时退化为原始值（无滤波）。
+        # 首帧直接采用原始值，避免从 0 缓慢爬升的启动瞬态。
+        alpha = self._wheel_velocity_lpf_alpha
+        if not self._wheel_velocity_initialized:
+            self._wheel_velocity = raw
+            self._wheel_velocity_initialized = True
+        else:
+            self._wheel_velocity = (
+                alpha * raw + (1.0 - alpha) * self._wheel_velocity
+            )
+
         if self._latest_state is not None:
             self._latest_state.wheel_velocity = self._wheel_velocity
 

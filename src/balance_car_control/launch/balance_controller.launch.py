@@ -2,7 +2,7 @@
 Author: LCOIT dogcat.let@gmail.com
 Date: 2026-05-27 23:57:35
 LastEditors: LCOIT dogcat.let@gmail.com
-LastEditTime: 2026-05-28 17:23:47
+LastEditTime: 2026-05-29 00:44:14
 FilePath: /two_wheel_self_balance_car/src/balance_car_control/launch/balance_controller.launch.py
 Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 '''
@@ -54,7 +54,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "use_sim_time",
-            default_value="true",
+            default_value="false",
             description="Use Gazebo simulation time from /clock.",
         ),
         DeclareLaunchArgument(

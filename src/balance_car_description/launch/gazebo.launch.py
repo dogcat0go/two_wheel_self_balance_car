@@ -37,6 +37,9 @@ def generate_launch_description():
     use_rviz = LaunchConfiguration("use_rviz", default="true")
     world = LaunchConfiguration("world", default=world_file)
     pause = LaunchConfiguration("pause", default="false")
+    # 跑 headless（关掉 gzclient）能省 30-50% CPU，调参时强烈推荐。
+    # 需要看车体姿态时再 gui:=true。
+    gui = LaunchConfiguration("gui", default="true")
     # "effort" or "velocity". URDF 与 ros2_control yaml 同时暴露两套接口，
     # 这里决定 spawner 启动哪一个（另一条仍可手动 ros2 control load_controller 拉起）。
     controller_type = LaunchConfiguration("controller_type", default="effort")
@@ -57,6 +60,7 @@ def generate_launch_description():
         launch_arguments={
             "world": world,
             "pause": pause,
+            "gui": gui,
         }.items(),
     )
 
@@ -131,6 +135,11 @@ def generate_launch_description():
         DeclareLaunchArgument("use_rviz", default_value="true"),
         DeclareLaunchArgument("world", default_value=world_file),
         DeclareLaunchArgument("pause", default_value="false"),
+        DeclareLaunchArgument(
+            "gui",
+            default_value="true",
+            description="Whether to launch gzclient (Gazebo GUI). Set false to save CPU when tuning.",
+        ),
         DeclareLaunchArgument(
             "controller_type",
             default_value="effort",

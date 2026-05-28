@@ -1,6 +1,7 @@
 controller_manager:
   ros__parameters:
-    update_rate: 200
+    # 对齐物理步长 4ms：250 Hz 控制刚好每物理步触发一次，不浪费 CPU 也不丢拍
+    update_rate: 250
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster

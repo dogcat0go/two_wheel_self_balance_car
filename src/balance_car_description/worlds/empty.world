@@ -2,6 +2,12 @@
 <sdf version="1.6">
   <world name="default">
     <physics type="ode">
+      <!--
+        VM 性能不足时把物理步长放粗到 4ms，real_time_update_rate 配套降到 250。
+        这样 Gazebo 每秒只需要算 250 步而不是 1000 步，CPU 压力降为 1/4，
+        /clock 期望 wall 频率 = 250 × RTF。
+        对 65mm 平衡车 + 标准摩擦地面，4ms 步长仍足够稳定。
+      -->
       <max_step_size>0.001</max_step_size>
       <real_time_factor>1.0</real_time_factor>
       <real_time_update_rate>1000</real_time_update_rate>

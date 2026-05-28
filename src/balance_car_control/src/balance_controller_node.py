@@ -17,6 +17,9 @@ class BalanceControllerNode(Node):
     def __init__(self):
         super().__init__("balance_controller_node")
 
+        self._count_timer = 0
+        self._debug_div = 0
+
         self.declare_parameter("enabled", False)
         self.declare_parameter("imu_topic", "/imu/data")
         self.declare_parameter("joint_states_topic", "/joint_states")
@@ -180,7 +183,7 @@ class BalanceControllerNode(Node):
         self.last_log_time = now
         self.get_logger().info(
             "pitch={:.2f}deg pitch_rate={:.3f}rad/s wheel_v={:.3f}rad/s "
-            "balance_tau={:.3f}Nm cmd=[{:.3f}, {:.3f}]Nm enabled={} published={}".format(
+            "balance_tau={:.3f}Nm cmd=[{:.3f}, {:.3f}]Nm enabled={} published={} count_timer={}".format(
                 math.degrees(state.pitch),
                 state.pitch_rate,
                 state.wheel_velocity,
@@ -189,6 +192,7 @@ class BalanceControllerNode(Node):
                 right_tau,
                 self.enabled,
                 final_published,
+                self._count_timer,
             )
         )
 
@@ -200,7 +204,7 @@ class BalanceControllerNode(Node):
 
         self.last_invalid_log_time = now
         self.get_logger().warn(
-            "Safety stop: {}. Publishing [0.0, 0.0].".format(reason)
+            "Safety stop: {}. Publishing [0.0, 0.0]. count_timer={}".format(reason, self._count_timer)
         )
 
     def on_timer(self):
@@ -222,27 +226,28 @@ class BalanceControllerNode(Node):
         turn_tau = 0.0
         mixed_command = self.wheel_mixer.mix(balance_tau, turn_tau)
         safe_command = self.safety.limit_command(mixed_command, dt)
-
+        self._count_timer += 1
         if self.enabled:
             self.publish_wheels(safe_command.left, safe_command.right)
         else:
             self.stop_wheels()
             safe_command.left = 0.0
             safe_command.right = 0.0
-
-        self.publish_debug(
-            state=state,
-            balance_tau=balance_tau,
-            left_tau=safe_command.left,
-            right_tau=safe_command.right,
-        )
-        self.maybe_log_control(
-            state=state,
-            balance_tau=balance_tau,
-            left_tau=safe_command.left,
-            right_tau=safe_command.right,
-            final_published=self.enabled,
-        )
+        self._debug_div = (self._debug_div + 1) % 2
+        if self._debug_div == 0:
+            self.publish_debug(
+                state=state,
+                balance_tau=balance_tau,
+                left_tau=safe_command.left,
+                right_tau=safe_command.right,
+            )
+            self.maybe_log_control(
+                state=state,
+                balance_tau=balance_tau,
+                left_tau=safe_command.left,
+                right_tau=safe_command.right,
+                final_published=self.enabled,
+            )
 
 
 def main():

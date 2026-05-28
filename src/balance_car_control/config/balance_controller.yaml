@@ -9,18 +9,25 @@ balance_controller_node:
     command_topic: /wheel_effort_controller/commands
     debug_topic: /balance_controller/debug
     control_rate: 200.0
+    # 调高到 0.5：每 0.5 秒一条 INFO 就够看了，原来 0.005 等于每拍都打日志，开销大且刷屏。
+    # 详细数据交给 PlotJuggler/rosbag，不靠 stdout。
     log_period_sec: 0.05
 
     pitch_target: 0.0
-    kp_pitch: 1.2
-    kd_pitch: 0.08
-    kv_wheel: 0.02
-    pitch_deadband: 0.003
+    # max_wheel_effort=0.12 时的初始保守参数，先验证物理可行域内的稳定性。
+    # 调通后再回到 kp/kd 系统化扫频（Z-N 法）。
+    kp_pitch: 0.5
+    kd_pitch: 0.05
+    kv_wheel: 0.0
+    pitch_deadband: 0.0
     min_balance_effort: 0.0
     output_sign: 1.0
 
-    # 单轮力矩饱和与变化率上限。max_wheel_effort 必须 <= URDF 的 wheel_effort_limit (2.5 N·m)
-    max_wheel_effort: 2.5
-    max_effort_slew: 60.0
+    # 单轮力矩饱和与变化率上限。
+    #   max_wheel_effort 关键约束：必须 ≤ 地面摩擦的 slip 阈值
+    #     = μ × m_total × g / 2 × r = 1.0 × 0.756 × 9.81 / 2 × 0.0325 ≈ 0.12 N·m
+    #   超过这个值轮子会原地打滑，控制力矩传不到车体，PD 闭环数学失效。
+    max_wheel_effort: 0.12
+    max_effort_slew: 500.0
     fall_angle_rad: 0.9
     imu_timeout_sec: 0.2

@@ -3,15 +3,18 @@
 import math
 
 import rclpy
+from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState
 from std_msgs.msg import Float64MultiArray
 
 from attitude_estimator import AttitudeEstimator
 from balance_pd import BalancePDConfig, BalancePDController
+from motion_command import MotionCommandAdapter, MotionCommandConfig
 from safety_limiter import SafetyConfig, SafetyLimiter
 from velocity_loop import VelocityLoop, VelocityLoopConfig
 from wheel_mixer import WheelMixer
+from yaw_loop import YawLoop, YawLoopConfig
 
 
 class BalanceControllerNode(Node):
@@ -59,10 +62,33 @@ class BalanceControllerNode(Node):
         self.declare_parameter("velocity_integral_limit", 0.12)
         self.declare_parameter("velocity_output_sign", 1.0)
 
+        # ---- 运动指令：/cmd_vel → 速度 + 方向 ----
+        self.declare_parameter("cmd_vel_topic", "/cmd_vel")
+        self.declare_parameter("motion_control_enabled", True)
+        self.declare_parameter("wheel_radius", 0.0325)
+        self.declare_parameter("max_linear_velocity", 0.5)
+        self.declare_parameter("max_angular_velocity", 1.5)
+        self.declare_parameter("max_wheel_velocity_cmd", 15.0)
+        self.declare_parameter("cmd_vel_timeout_sec", 0.5)
+
+        # ---- 偏航环（方向 / 差动力矩）----
+        self.declare_parameter("yaw_loop_enabled", True)
+        self.declare_parameter("kp_yaw", 0.02)
+        self.declare_parameter("kd_yaw", 0.0)
+        self.declare_parameter("max_turn_tau", 0.06)
+        self.declare_parameter("yaw_output_sign", 1.0)
+        self.declare_parameter("yaw_cmd_activate_threshold", 0.08)
+        self.declare_parameter("yaw_rate_deadband", 0.05)
+
         self.enabled = bool(self.get_parameter("enabled").value)
         self.log_period_sec = float(self.get_parameter("log_period_sec").value)
+        self.motion_control_enabled = bool(
+            self.get_parameter("motion_control_enabled").value
+        )
         # 内环 pitch_target 偏置（叠加在外环输出上）。外环开时一般留 0。
         self.pitch_target_bias = float(self.get_parameter("pitch_target").value)
+        # motion_control 关闭时，速度外环仍可用 yaml 里的静态 target_velocity。
+        self.static_target_velocity = float(self.get_parameter("target_velocity").value)
 
         pd_config = BalancePDConfig(
             kp_pitch=float(self.get_parameter("kp_pitch").value),
@@ -82,11 +108,30 @@ class BalanceControllerNode(Node):
         velocity_config = VelocityLoopConfig(
             kp_v=float(self.get_parameter("kp_v").value),
             ki_v=float(self.get_parameter("ki_v").value),
-            target_velocity=float(self.get_parameter("target_velocity").value),
+            target_velocity=self.static_target_velocity,
             pitch_target_limit=float(self.get_parameter("pitch_target_limit").value),
             integral_limit=float(self.get_parameter("velocity_integral_limit").value),
             output_sign=float(self.get_parameter("velocity_output_sign").value),
             enabled=bool(self.get_parameter("velocity_loop_enabled").value),
+        )
+        motion_config = MotionCommandConfig(
+            wheel_radius=float(self.get_parameter("wheel_radius").value),
+            max_linear_velocity=float(self.get_parameter("max_linear_velocity").value),
+            max_angular_velocity=float(self.get_parameter("max_angular_velocity").value),
+            max_wheel_velocity=float(self.get_parameter("max_wheel_velocity_cmd").value),
+            cmd_vel_timeout_sec=float(self.get_parameter("cmd_vel_timeout_sec").value),
+            enabled=self.motion_control_enabled,
+        )
+        yaw_config = YawLoopConfig(
+            kp_yaw=float(self.get_parameter("kp_yaw").value),
+            kd_yaw=float(self.get_parameter("kd_yaw").value),
+            max_turn_tau=float(self.get_parameter("max_turn_tau").value),
+            output_sign=float(self.get_parameter("yaw_output_sign").value),
+            enabled=bool(self.get_parameter("yaw_loop_enabled").value),
+            yaw_cmd_activate_threshold=float(
+                self.get_parameter("yaw_cmd_activate_threshold").value
+            ),
+            yaw_rate_deadband=float(self.get_parameter("yaw_rate_deadband").value),
         )
 
         self.estimator = AttitudeEstimator(
@@ -96,6 +141,8 @@ class BalanceControllerNode(Node):
         )
         self.balance_pd = BalancePDController(pd_config)
         self.velocity_loop = VelocityLoop(velocity_config)
+        self.motion_adapter = MotionCommandAdapter(motion_config)
+        self.yaw_loop = YawLoop(yaw_config)
         self.safety = SafetyLimiter(safety_config)
         self.wheel_mixer = WheelMixer()
 
@@ -120,6 +167,12 @@ class BalanceControllerNode(Node):
             self.get_parameter("joint_states_topic").value,
             self.on_joint_states,
             20,
+        )
+        self.create_subscription(
+            Twist,
+            self.get_parameter("cmd_vel_topic").value,
+            self.on_cmd_vel,
+            10,
         )
 
         self.last_control_time = self.get_clock().now()
@@ -174,6 +227,27 @@ class BalanceControllerNode(Node):
                 velocity_config.output_sign,
             )
         )
+        self.get_logger().info(
+            "Motion: enabled={} cmd_vel={} wheel_r={:.4f}m "
+            "v_max={:.2f}m/s w_max={:.2f}rad/s timeout={:.2f}s".format(
+                motion_config.enabled,
+                self.get_parameter("cmd_vel_topic").value,
+                motion_config.wheel_radius,
+                motion_config.max_linear_velocity,
+                motion_config.max_angular_velocity,
+                motion_config.cmd_vel_timeout_sec,
+            )
+        )
+        self.get_logger().info(
+            "Yaw loop: enabled={} kp_yaw={:.4f} kd_yaw={:.4f} "
+            "max_turn_tau={:.3f}Nm sign={:.0f}".format(
+                yaw_config.enabled,
+                yaw_config.kp_yaw,
+                yaw_config.kd_yaw,
+                yaw_config.max_turn_tau,
+                yaw_config.output_sign,
+            )
+        )
         if abs(pd_config.output_sign) != 1.0:
             self.get_logger().warn(
                 "output_sign is {:.3f}. It is usually expected to be 1.0 or -1.0; "
@@ -189,6 +263,13 @@ class BalanceControllerNode(Node):
     def on_joint_states(self, msg):
         self.estimator.update_wheel_velocity(msg)
 
+    def on_cmd_vel(self, msg):
+        self.motion_adapter.update_from_twist(
+            linear_x=float(msg.linear.x),
+            angular_z=float(msg.angular.z),
+            stamp_sec=self.now_sec(),
+        )
+
     def publish_wheels(self, left, right):
         self.command_pub.publish(Float64MultiArray(data=[left, right]))
 
@@ -196,11 +277,30 @@ class BalanceControllerNode(Node):
         self.safety.reset()
         self.publish_wheels(0.0, 0.0)
 
-    def publish_debug(self, state, balance_tau, left_tau, right_tau):
-        """调试话题数据排布（effort 模式，单位 N·m / rad / rad·s⁻¹）：
-            [pitch, pitch_rate, pitch_target,
-             balance_tau, left_tau, right_tau,
-             enabled, yaw, wheel_velocity]
+    def publish_debug(
+        self,
+        state,
+        balance_tau,
+        left_tau,
+        right_tau,
+        target_wheel_velocity,
+        target_yaw_rate,
+        turn_tau,
+    ):
+        """调试话题数据排布（effort 模式）：
+            [0] pitch [rad]
+            [1] pitch_rate [rad/s]
+            [2] pitch_target [rad]
+            [3] balance_tau [N·m]
+            [4] left_tau [N·m]
+            [5] right_tau [N·m]
+            [6] enabled [0/1]
+            [7] yaw [rad]
+            [8] wheel_velocity [rad/s]
+            [9] target_wheel_velocity [rad/s]
+            [10] target_yaw_rate [rad/s]
+            [11] turn_tau [N·m]
+            [12] yaw_rate [rad/s]
         """
         if state is None:
             return
@@ -215,9 +315,23 @@ class BalanceControllerNode(Node):
             1.0 if self.enabled else 0.0,
             state.yaw,
             state.wheel_velocity,
+            target_wheel_velocity,
+            target_yaw_rate,
+            turn_tau,
+            state.yaw_rate,
         ]))
 
-    def maybe_log_control(self, state, balance_tau, left_tau, right_tau, final_published):
+    def maybe_log_control(
+        self,
+        state,
+        balance_tau,
+        left_tau,
+        right_tau,
+        turn_tau,
+        target_wheel_velocity,
+        target_yaw_rate,
+        final_published,
+    ):
         now = self.get_clock().now()
         elapsed = (now - self.last_log_time).nanoseconds / 1e9
         if elapsed < self.log_period_sec:
@@ -225,17 +339,20 @@ class BalanceControllerNode(Node):
 
         self.last_log_time = now
         self.get_logger().info(
-            "pitch={:.2f}deg pitch_tgt={:.2f}deg pitch_rate={:.3f}rad/s wheel_v={:.3f}rad/s "
-            "balance_tau={:.3f}Nm cmd=[{:.3f}, {:.3f}]Nm enabled={} published={} count_timer={}".format(
+            "pitch={:.2f}deg pitch_tgt={:.2f}deg wheel_v={:.3f} tgt_v={:.3f} "
+            "yaw_rate={:.3f} tgt_w={:.3f} turn_tau={:.3f}Nm balance_tau={:.3f}Nm "
+            "cmd=[{:.3f}, {:.3f}]Nm enabled={} count_timer={}".format(
                 math.degrees(state.pitch),
                 math.degrees(self.balance_pd.config.pitch_target),
-                state.pitch_rate,
                 state.wheel_velocity,
+                target_wheel_velocity,
+                state.yaw_rate,
+                target_yaw_rate,
+                turn_tau,
                 balance_tau,
                 left_tau,
                 right_tau,
                 self.enabled,
-                final_published,
                 self._count_timer,
             )
         )
@@ -264,23 +381,39 @@ class BalanceControllerNode(Node):
             self.maybe_log_invalid_state(invalid_reason)
             # 车已倒/数据失效：复位外环积分，避免积分饱和导致复位后甩头
             self.velocity_loop.reset()
+            self.yaw_loop.reset()
             self.stop_wheels()
             return
 
+        now_sec = self.now_sec()
+        motion_cmd = self.motion_adapter.current_command(now_sec)
+        if self.motion_control_enabled:
+            target_wheel_velocity = motion_cmd.target_wheel_velocity
+            target_yaw_rate = motion_cmd.target_yaw_rate
+        else:
+            target_wheel_velocity = self.static_target_velocity
+            target_yaw_rate = 0.0
+
+        self.velocity_loop.config.target_velocity = target_wheel_velocity
+
         # 串级外环（速度环）：根据轮速误差算出"目标倾角"喂给内环。
-        # 失能时不让积分继续累积（否则一 enable 就甩出去）。
         if self.enabled:
             pitch_target = self.velocity_loop.compute(state.wheel_velocity, dt)
         else:
             self.velocity_loop.reset()
+            self.yaw_loop.reset()
             pitch_target = 0.0
         self.balance_pd.config.pitch_target = self.pitch_target_bias + pitch_target
 
         # 内环 PD 给出的是"让车体保持平衡所需的单轮力矩" [N·m]
         balance_tau = self.balance_pd.compute(state)
 
-        # 第一阶段不做转向。未来 yaw 环或 cmd_vel 可以在这里生成 turn_tau（差动力矩）。
-        turn_tau = 0.0
+        # 偏航环：角速度 PD → 差动力矩 turn_tau
+        turn_tau = self.yaw_loop.compute(
+            target_yaw_rate=target_yaw_rate,
+            yaw_rate=state.yaw_rate,
+            dt=dt,
+        )
         mixed_command = self.wheel_mixer.mix(balance_tau, turn_tau)
         safe_command = self.safety.limit_command(mixed_command, dt)
         self._count_timer += 1
@@ -297,12 +430,18 @@ class BalanceControllerNode(Node):
                 balance_tau=balance_tau,
                 left_tau=safe_command.left,
                 right_tau=safe_command.right,
+                target_wheel_velocity=target_wheel_velocity,
+                target_yaw_rate=target_yaw_rate,
+                turn_tau=turn_tau,
             )
             self.maybe_log_control(
                 state=state,
                 balance_tau=balance_tau,
                 left_tau=safe_command.left,
                 right_tau=safe_command.right,
+                turn_tau=turn_tau,
+                target_wheel_velocity=target_wheel_velocity,
+                target_yaw_rate=target_yaw_rate,
                 final_published=self.enabled,
             )
 

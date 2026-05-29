@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>速度与方向控制框架 · 两轮自平衡车</title>
+  <style>
+    :root {
+      --bg: #f6f8fb; --panel: #fff; --ink: #1f2937; --muted: #667085;
+      --line: #d8dee9; --blue: #2563eb; --green: #0f766e; --orange: #b45309;
+      --red: #b91c1c; --purple: #6d28d9; --code-bg: #111827; --code-ink: #e5e7eb;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif; line-height: 1.65; }
+    header { background: linear-gradient(135deg, #111827, #2563eb); color: white; padding: 46px 24px; }
+    header .wrap, main { max-width: 1160px; margin: 0 auto; }
+    h1 { margin: 0 0 12px; font-size: clamp(28px, 4vw, 40px); }
+    header p { max-width: 920px; margin: 0; color: #dbeafe; font-size: 17px; }
+    main { padding: 28px 20px 56px; }
+    nav, section { background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+      box-shadow: 0 10px 28px rgb(15 23 42 / 6%); padding: 24px; margin-bottom: 20px; }
+    nav ul { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+    @media (max-width: 720px) { nav ul { columns: 1; } }
+    h2 { margin: 0 0 16px; font-size: 24px; color: var(--blue); border-bottom: 2px solid #bfdbfe; padding-bottom: 8px; }
+    h3 { margin: 24px 0 10px; font-size: 18px; color: var(--green); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; }
+    th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+    th { background: #eff6ff; }
+    .diagram { background: #f8fafc; border: 1px dashed var(--line); border-radius: 12px;
+      padding: 16px; overflow-x: auto; font-family: ui-monospace, Consolas, monospace; font-size: 13px; white-space: pre; }
+    .note { background: #eff6ff; border-left: 4px solid var(--blue); padding: 12px 16px; margin: 12px 0; font-size: 14px; }
+    .warn { background: #fef2f2; border-left: 4px solid var(--red); padding: 12px 16px; margin: 12px 0; font-size: 14px; }
+    .ok { background: #f0fdf4; border-left: 4px solid var(--green); padding: 12px 16px; margin: 12px 0; font-size: 14px; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-right: 6px; }
+    .tag-motion { background: #dbeafe; color: #1d4ed8; }
+    .tag-balance { background: #d1fae5; color: #065f46; }
+    .tag-yaw { background: #fae8ff; color: #7e22ce; }
+    .code-block { position: relative; margin: 12px 0; }
+    .code-block pre { margin: 0; background: var(--code-bg); color: var(--code-ink); border-radius: 12px;
+      padding: 16px 44px 16px 16px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+    .copy-button { position: absolute; top: 8px; right: 8px; border: 1px solid #374151; background: #1f2937;
+      color: #e5e7eb; border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+    footer { text-align: center; color: var(--muted); font-size: 13px; padding: 20px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>速度与方向控制框架</h1>
+      <p>
+        在已有「串级平衡（速度外环 + 倾角内环）」之上，接入标准 ROS <code>/cmd_vel</code>，
+        实现<strong>前进/后退速度</strong>与<strong>偏航转向</strong>的框架层代码。
+        本文档说明架构、文件职责、话题接口与后续调参路线；具体增益需在站立稳定后再小步标定。
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <nav>
+      <h2 style="border:none;color:var(--ink);">目录</h2>
+      <ul>
+        <li><a href="#s1">1. 控制分层总览</a></li>
+        <li><a href="#s2">2. 新增模块与文件</a></li>
+        <li><a href="#s3">3. /cmd_vel 接口</a></li>
+        <li><a href="#s4">4. 速度通道（复用外环）</a></li>
+        <li><a href="#s5">5. 方向通道（偏航环）</a></li>
+        <li><a href="#s6">6. WheelMixer 混合</a></li>
+        <li><a href="#s7">7. 参数与 debug 话题</a></li>
+        <li><a href="#s8">8. 如何测试</a></li>
+        <li><a href="#s9">9. 调参顺序与后续扩展</a></li>
+      </ul>
+    </nav>
+
+    <section id="s1">
+      <h2>1. 控制分层总览</h2>
+      <p>整体是<strong>三层解耦</strong>：平衡（必须）+ 速度（已有外环）+ 方向（新增偏航环）。</p>
+      <div class="diagram">  /cmd_vel (Twist)
+       linear.x  ──► MotionCommandAdapter ──► target_wheel_velocity [rad/s]
+       angular.z ──►                        ──► target_yaw_rate     [rad/s]
+                              │
+                              ▼
+              ┌───────────────────────────────────────────────┐
+              │  on_timer @ control_rate (200 Hz)              │
+              │                                               │
+              │  target_v ──► VelocityLoop (PI) ──► pitch_tgt │
+              │                      ▲                        │
+              │                   wheel_v                     │
+              │                      │                        │
+              │  pitch_tgt ──► BalancePD (PD) ──► balance_tau │
+              │                      ▲                        │
+              │                 pitch, pitch_rate               │
+              │                                               │
+              │  target_w ──► YawLoop (PD) ──► turn_tau       │
+              │                      ▲                        │
+              │                  yaw_rate (IMU ωz)            │
+              │                                               │
+              │  WheelMixer(balance, turn) ──► SafetyLimiter  │
+              └───────────────────────────────────────────────┘
+                              │
+                              ▼
+               /wheel_effort_controller/commands  [left τ, right τ]</div>
+
+      <div class="ok">
+        <strong>框架原则：</strong>平衡环始终最高优先级；速度通过改 <code>pitch_target</code> 间接实现；
+        方向通过<strong>差动力矩</strong>实现，不直接改倾角目标，避免和平衡环抢 pitch。
+      </div>
+    </section>
+
+    <section id="s2">
+      <h2>2. 新增模块与文件</h2>
+      <table>
+        <tr><th>文件</th><th>类</th><th>职责</th></tr>
+        <tr>
+          <td><code>motion_command.py</code></td>
+          <td><code>MotionCommandAdapter</code></td>
+          <td>解析 /cmd_vel，单位换算、限幅、超时归零</td>
+        </tr>
+        <tr>
+          <td><code>yaw_loop.py</code></td>
+          <td><code>YawLoop</code></td>
+          <td>target_yaw_rate − yaw_rate → turn_tau（差动力矩）</td>
+        </tr>
+        <tr>
+          <td><code>wheel_mixer.py</code></td>
+          <td><code>WheelMixer</code></td>
+          <td>已有：left = balance − turn，right = balance + turn</td>
+        </tr>
+        <tr>
+          <td><code>balance_controller_node.py</code></td>
+          <td>—</td>
+          <td>订阅 cmd_vel，每拍更新 target_v / target_w，串联各环</td>
+        </tr>
+        <tr>
+          <td><code>balance_types.py</code></td>
+          <td><code>MotionCommand</code></td>
+          <td>内部运动指令数据结构；<code>BalanceState</code> 增加 yaw_rate</td>
+        </tr>
+      </table>
+    </section>
+
+    <section id="s3">
+      <h2>3. /cmd_vel 接口</h2>
+      <table>
+        <tr><th>字段</th><th>单位</th><th>含义</th><th>内部转换</th></tr>
+        <tr>
+          <td><code>linear.x</code></td><td>m/s</td><td>前进为正，后退为负</td>
+          <td>target_wheel_velocity = linear.x / wheel_radius</td>
+        </tr>
+        <tr>
+          <td><code>angular.z</code></td><td>rad/s</td><td>逆时针为正（ROS 惯例）</td>
+          <td>target_yaw_rate = angular.z（直接使用）</td>
+        </tr>
+        <tr>
+          <td><code>linear.y, linear.z, angular.x/y</code></td><td>—</td>
+          <td colspan="2">平面小车忽略</td>
+        </tr>
+      </table>
+
+      <h3>安全默认</h3>
+      <ul>
+        <li><code>cmd_vel_timeout_sec</code>（默认 0.5 s）内无新消息 → 目标速度/角速度归零 → 车尝试站立；</li>
+        <li><code>max_linear_velocity</code>、<code>max_angular_velocity</code> 对指令限幅；</li>
+        <li><code>motion_control_enabled: false</code> 时忽略 /cmd_vel，退回 yaml 静态 <code>target_velocity</code>。</li>
+      </ul>
+
+      <div class="note">
+        <code>wheel_radius: 0.0325</code> m 与 URDF <code>two_wheel_balance_65mm.urdf.xacro</code> 一致。
+        例：linear.x = 0.1 m/s → 轮速期望 ≈ 0.1/0.0325 ≈ 3.08 rad/s。
+      </div>
+    </section>
+
+    <section id="s4">
+      <h2>4. 速度通道（复用串级外环）</h2>
+      <p><span class="tag tag-balance">外环</span> <code>VelocityLoop</code> 的 <code>target_velocity</code> 不再只来自 yaml，而是每拍由运动指令写入：</p>
+      <div class="formula" style="background:#fffbeb;border-left:4px solid var(--orange);padding:12px 16px;font-family:monospace;">
+        velocity_loop.config.target_velocity = motion_cmd.target_wheel_velocity
+      </div>
+      <p>外环 PI 仍输出 <code>pitch_target</code> 给内环 PD——<strong>前进/后退的实现方式仍是「用倾角换轮速」</strong>，与站立平衡同一套物理机制。</p>
+      <div class="warn">
+        给非零 <code>linear.x</code> 时，外环会要求更大的 <code>pitch_target</code>，更容易顶到
+        <code>pitch_target_limit</code>。运动调参前建议确认站立时 limit 有余量，或略提高 limit 并加强内环。
+      </div>
+    </section>
+
+    <section id="s5">
+      <h2>5. 方向通道（偏航环）</h2>
+      <p><span class="tag tag-yaw">偏航</span> <code>YawLoop</code> 为<strong>角速度 PD</strong>（框架版）：</p>
+      <div class="formula" style="background:#fffbeb;border-left:4px solid var(--orange);padding:12px 16px;font-family:monospace;">
+        e_w = target_yaw_rate − yaw_rate<br>
+        turn_tau = sign · ( Kp_yaw · e_w − Kd_yaw · d(yaw_rate)/dt )<br>
+        turn_tau = clamp(turn_tau, ±max_turn_tau)
+      </div>
+      <ul>
+        <li><code>yaw_rate</code> 来自 IMU <code>angular_velocity.z</code>；</li>
+        <li><code>turn_tau</code> 为<strong>差动力矩</strong>：左轮减、右轮加（或相反，由 mix 公式决定）；</li>
+        <li><code>max_turn_tau</code> 应明显小于 <code>max_wheel_effort</code>，避免转向抢光平衡力矩。</li>
+      </ul>
+      <div class="note">
+        后续可扩展为：偏航角位置环（outer: yaw angle → target_yaw_rate，inner: 本 YawLoop），
+        或接入 <code>nav2</code> / 路径跟踪；当前框架先打通 cmd_vel 角速度通道。
+      </div>
+    </section>
+
+    <section id="s6">
+      <h2>6. WheelMixer 混合</h2>
+      <div class="diagram">  balance_tau  ──┐
+                    ├──►  left  = balance_tau − turn_tau
+  turn_tau      ──┤     right = balance_tau + turn_tau
+                    │
+  物理含义：       两轮同向分量 = 平衡；反向分量 = 转向</div>
+      <p>
+        <code>SafetyLimiter</code> 对左右轮分别做力矩饱和与斜率限制。
+        若 <code>|balance_tau| + |turn_tau| &gt; max_wheel_effort</code>，后饱和的一侧会被削顶——
+        表现为「一边还能转、另一边已饱和」或转向变弱，属预期，需通过 <code>max_turn_tau</code> 与增益协调。
+      </p>
+    </section>
+
+    <section id="s7">
+      <h2>7. 参数与 debug 话题</h2>
+      <h3>7.1 yaml 新增段（balance_controller.yaml）</h3>
+      <table>
+        <tr><th>参数</th><th>默认</th><th>说明</th></tr>
+        <tr><td><code>cmd_vel_topic</code></td><td>/cmd_vel</td><td>订阅话题</td></tr>
+        <tr><td><code>motion_control_enabled</code></td><td>true</td><td>是否使用 /cmd_vel</td></tr>
+        <tr><td><code>wheel_radius</code></td><td>0.0325</td><td>线速度→轮速换算</td></tr>
+        <tr><td><code>max_linear_velocity</code></td><td>0.5 m/s</td><td>线速度限幅</td></tr>
+        <tr><td><code>max_angular_velocity</code></td><td>1.5 rad/s</td><td>角速度限幅</td></tr>
+        <tr><td><code>cmd_vel_timeout_sec</code></td><td>0.5 s</td><td>超时归零</td></tr>
+        <tr><td><code>yaw_loop_enabled</code></td><td>true</td><td>偏航环开关</td></tr>
+        <tr><td><code>kp_yaw</code></td><td>0.02</td><td>偏航 P 增益</td></tr>
+        <tr><td><code>max_turn_tau</code></td><td>0.06 N·m</td><td>差动力矩上限</td></tr>
+        <tr><td><code>yaw_output_sign</code></td><td>1.0</td><td>转向符号修正</td></tr>
+      </table>
+
+      <h3>7.2 /balance_controller/debug 扩展</h3>
+      <table>
+        <tr><th>下标</th><th>量</th><th>单位</th></tr>
+        <tr><td>0–8</td><td colspan="2">与原先相同（pitch, pitch_rate, pitch_target, τ…, yaw, wheel_v）</td></tr>
+        <tr><td>9</td><td>target_wheel_velocity</td><td>rad/s</td></tr>
+        <tr><td>10</td><td>target_yaw_rate</td><td>rad/s</td></tr>
+        <tr><td>11</td><td>turn_tau</td><td>N·m</td></tr>
+        <tr><td>12</td><td>yaw_rate</td><td>rad/s</td></tr>
+      </table>
+    </section>
+
+    <section id="s8">
+      <h2>8. 如何测试</h2>
+      <p>重新 build 一次（新增了 Python 模块）：</p>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>cd ~/ros2_projects/self_balance_car_class/two_wheel_self_balance_car
+colcon build --packages-select balance_car_control --symlink-install
+source install/setup.bash</code></pre>
+      </div>
+
+      <h3>8.1 启动 Gazebo + 平衡控制器</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code># 终端 1
+ros2 launch balance_car_description gazebo.launch.py gui:=false
+
+# 终端 2（等仿真起来后）
+ros2 launch balance_car_control balance_controller.launch.py enabled:=true use_sim_time:=true</code></pre>
+      </div>
+
+      <h3>8.2 站立（零指令）</h3>
+      <p>不发 /cmd_vel 或 timeout 后，target 自动为 0，行为与改框架前一致。</p>
+
+      <h3>8.3 慢速前进</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \
+  "{linear: {x: 0.08, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"</code></pre>
+      </div>
+
+      <h3>8.4 原地转向</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \
+  "{linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.3}}"</code></pre>
+      </div>
+
+      <h3>8.5 弧线（速度 + 方向）</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>ros2 topic pub --rate 10 /cmd_vel geometry_msgs/msg/Twist \
+  "{linear: {x: 0.1, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.2}}"</code></pre>
+      </div>
+
+      <div class="warn">
+        首次测试请从小速度、小角速度开始。转向反了改 <code>yaw_output_sign</code>；
+        前进方向反了检查 <code>velocity_output_sign</code> 与 linear.x 符号。
+      </div>
+    </section>
+
+    <section id="s9">
+      <h2>9. 调参顺序与后续扩展</h2>
+      <h3>9.1 推荐顺序</h3>
+      <ol>
+        <li>确认 <code>motion_control_enabled: true</code> 且无 cmd_vel 时仍能稳定站立；</li>
+        <li>小 <code>linear.x</code>（0.05~0.1 m/s）标速度通道，观察 debug[9]、[8] 是否跟踪；</li>
+        <li>小 <code>angular.z</code>（0.2~0.5 rad/s）标 <code>kp_yaw</code>，观察 debug[10]、[12]、[11]；</li>
+        <li>再试组合运动；若倒，先降 <code>max_turn_tau</code> 或 <code>max_linear_velocity</code>。</li>
+      </ol>
+
+      <h3>9.2 后续可扩展（未实现）</h3>
+      <ul>
+        <li><strong>偏航位置环</strong>：cmd_vel 积分 / 绝对 yaw 目标 → target_yaw_rate；</li>
+        <li><strong>teleop launch</strong>：teleop_twist_keyboard + 本节点；</li>
+        <li><strong>cmd_vel 平滑</strong>：S 曲线或低通，减轻阶跃指令对 pitch 环冲击；</li>
+        <li><strong>力矩预算分配</strong>：turn 与 balance 共享 max_wheel_effort 的智能缩放；</li>
+        <li><strong>LQR / MPC</strong>：替换 balance + velocity 两环，保留 mixer 与 safety。</li>
+      </ul>
+
+      <div class="ok">
+        相关文档：<code>docs/cascaded_pid_theory.html</code>（串级平衡理论）与本文件（运动框架）配合阅读。
+      </div>
+    </section>
+
+    <footer>docs/motion_control_framework.html · balance_car_control 速度与方向控制框架</footer>
+  </main>
+
+  <script>
+    document.querySelectorAll(".code-block").forEach(function (block) {
+      var button = block.querySelector(".copy-button");
+      var code = block.querySelector("code");
+      if (!button || !code) return;
+      button.addEventListener("click", async function () {
+        try {
+          await navigator.clipboard.writeText(code.innerText);
+          var t = button.textContent;
+          button.textContent = "已复制";
+          setTimeout(function () { button.textContent = t; }, 1500);
+        } catch (e) {
+          button.textContent = "失败";
+          setTimeout(function () { button.textContent = "复制"; }, 1500);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

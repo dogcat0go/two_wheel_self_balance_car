@@ -33,12 +33,12 @@ balance_controller_node:
     max_wheel_effort: 0.24
     max_effort_slew: 500.0
     fall_angle_rad: 0.9
-    imu_timeout_sec: 0.2
+    imu_timeout_sec: 0.05
 
     # 轮速一阶低通：joint_states 原始轮速抖动较大，kv 反馈会放大它。
     # 0.3 表示每帧只采纳 30% 新值，明显平滑；嫌滞后可调到 0.5，要更稳可降到 0.2。
     # 设 1.0 等于关闭滤波（回到原始行为）。
-    wheel_velocity_lpf_alpha: 0.3
+    wheel_velocity_lpf_alpha: 0.5
 
     # ===== 串级外环：速度环（输出 pitch_target 给内环）=====
     # 调参顺序：先把内环(kp_pitch/kd_pitch)单独调到能短暂站立，
@@ -56,3 +56,24 @@ balance_controller_node:
     velocity_integral_limit: 0.12
     # 符号开关：若开外环后"漂移反而被加速"，把它改成 -1.0 翻转。
     velocity_output_sign: -1.0
+
+    # ===== 运动指令：/cmd_vel → 速度 + 方向（框架）=====
+    cmd_vel_topic: /cmd_vel
+    motion_control_enabled: true
+    wheel_radius: 0.0325          # [m] 与 URDF 一致，用于 linear.x → 轮速 rad/s
+    max_linear_velocity: 0.5      # [m/s] 前进/后退限速
+    max_angular_velocity: 1.5     # [rad/s] 原地/行进转向限速
+    max_wheel_velocity_cmd: 15.0  # [rad/s] 换算后轮速硬限幅
+    cmd_vel_timeout_sec: 0.5      # [s] 无新 cmd_vel 则目标归零（站立）
+
+    # ===== 偏航环：target_yaw_rate → turn_tau（差动力矩）=====
+    # 站立平衡时不要输出 turn_tau：|target_yaw_rate| 须超过 activate 阈值才启用。
+    # 否则 IMU 陀螺 z 轴零偏会被当成“要转向”，左右力矩不对称 → 前冲/摔倒。
+    yaw_loop_enabled: true
+    kp_yaw: 0.07                  # [N·m/(rad/s)] 先小后大
+    kd_yaw: 0.0
+    max_turn_tau: 0.06            # [N·m] 差动力矩上限，应明显 < max_wheel_effort
+    yaw_output_sign: 1.0          # 转向反了改 ±1
+    # |cmd_vel.angular.z| < 此值时不施加 turn_tau（站立 = 0）
+    yaw_cmd_activate_threshold: 0.05
+    yaw_rate_deadband: 0.02       # IMU yaw_rate 噪声/零偏死区

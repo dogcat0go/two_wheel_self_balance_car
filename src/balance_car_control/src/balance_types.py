@@ -17,7 +17,22 @@ class BalanceState:
     pitch: float
     pitch_rate: float
     yaw: float = 0.0
+    yaw_rate: float = 0.0
     wheel_velocity: float = 0.0
+
+
+@dataclass
+class MotionCommand:
+    """运动指令（由 /cmd_vel 或参数源解析而来）。
+
+    target_wheel_velocity [rad/s] —— 左右轮平均角速度期望，喂给速度外环
+    target_yaw_rate       [rad/s] —— 车体绕竖直轴角速度期望，喂给偏航环
+    stamp_sec             [s]     —— 指令更新时间（用于超时判据）
+    """
+
+    target_wheel_velocity: float = 0.0
+    target_yaw_rate: float = 0.0
+    stamp_sec: float = 0.0
 
 
 @dataclass

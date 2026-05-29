@@ -51,6 +51,7 @@ class AttitudeEstimator:
             pitch=pitch,
             pitch_rate=imu_msg.angular_velocity.y,
             yaw=yaw,
+            yaw_rate=imu_msg.angular_velocity.z,
             wheel_velocity=self._wheel_velocity,
         )
 

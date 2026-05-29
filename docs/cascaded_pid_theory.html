@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>两轮自平衡车 · 串级 PID 控制理论基础</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #667085;
+      --line: #d8dee9;
+      --blue: #2563eb;
+      --green: #0f766e;
+      --orange: #b45309;
+      --red: #b91c1c;
+      --purple: #6d28d9;
+      --code-bg: #111827;
+      --code-ink: #e5e7eb;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.65;
+    }
+
+    header {
+      background: linear-gradient(135deg, #111827, #0f766e);
+      color: white;
+      padding: 46px 24px;
+    }
+
+    header .wrap, main { max-width: 1160px; margin: 0 auto; }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(28px, 4vw, 40px);
+      line-height: 1.2;
+    }
+
+    header p {
+      max-width: 920px;
+      margin: 0;
+      color: #ccfbf1;
+      font-size: 17px;
+    }
+
+    main { padding: 28px 20px 56px; }
+
+    nav, section, .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 28px rgb(15 23 42 / 6%);
+    }
+
+    nav, section { padding: 24px; margin-bottom: 20px; }
+
+    nav ul {
+      margin: 0;
+      padding-left: 20px;
+      columns: 2;
+      column-gap: 32px;
+    }
+
+    @media (max-width: 720px) { nav ul { columns: 1; } }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 24px;
+      color: var(--green);
+      border-bottom: 2px solid #99f6e4;
+      padding-bottom: 8px;
+    }
+
+    h3 { margin: 24px 0 10px; font-size: 18px; color: var(--blue); }
+    h4 { margin: 16px 0 8px; font-size: 16px; color: var(--purple); }
+
+    p, li { font-size: 15px; }
+    .muted { color: var(--muted); font-size: 14px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      margin: 12px 0;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: #f0fdf4; }
+
+    .diagram {
+      background: #f8fafc;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      overflow-x: auto;
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre;
+    }
+
+    .formula {
+      background: #fffbeb;
+      border-left: 4px solid var(--orange);
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 14px;
+    }
+
+    .note {
+      background: #eff6ff;
+      border-left: 4px solid var(--blue);
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-size: 14px;
+    }
+
+    .warn {
+      background: #fef2f2;
+      border-left: 4px solid var(--red);
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-size: 14px;
+    }
+
+    .ok {
+      background: #f0fdf4;
+      border-left: 4px solid var(--green);
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-size: 14px;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-right: 6px;
+    }
+
+    .tag-outer { background: #dbeafe; color: #1d4ed8; }
+    .tag-inner { background: #d1fae5; color: #065f46; }
+    .tag-act   { background: #ffedd5; color: #9a3412; }
+
+    .code-block {
+      position: relative;
+      margin: 12px 0;
+    }
+
+    .code-block pre {
+      margin: 0;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      border-radius: 12px;
+      padding: 16px 44px 16px 16px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .copy-button {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      border: 1px solid #374151;
+      background: #1f2937;
+      color: #e5e7eb;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .copy-button:hover { background: #374151; }
+
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>两轮自平衡车 · 串级 PID 控制理论基础</h1>
+      <p>
+        本文档对应本仓库当前实现：<code>velocity_loop.py</code>（外环速度 PI）+
+        <code>balance_pd.py</code>（内环倾角 PD）+ <code>balance_controller_node.py</code>（调度与安全）。
+        说明物理模型、控制结构、公式、符号约定、限幅与调参思路，并为后续 LQR 升级做对照。
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <nav>
+      <h2 style="border:none; margin-bottom:12px; color:var(--ink);">目录</h2>
+      <ul>
+        <li><a href="#sec1">1. 为什么用串级 PID</a></li>
+        <li><a href="#sec2">2. 被控对象与物理直觉</a></li>
+        <li><a href="#sec3">3. 总体控制架构</a></li>
+        <li><a href="#sec4">4. 外环：速度 PI</a></li>
+        <li><a href="#sec5">5. 内环：倾角 PD</a></li>
+        <li><a href="#sec6">6. 节点中的信号流与执行周期</a></li>
+        <li><a href="#sec7">7. 参数表与单位</a></li>
+        <li><a href="#sec8">8. 调参方法与典型现象</a></li>
+        <li><a href="#sec9">9. 与单环 kv、与 LQR 的关系</a></li>
+        <li><a href="#sec10">10. 调试话题与验收指标</a></li>
+      </ul>
+    </nav>
+
+    <!-- 1 -->
+    <section id="sec1">
+      <h2>1. 为什么用串级 PID</h2>
+      <p>
+        两轮自平衡车本质是<strong>倒立摆（inverted pendulum）装在驱动轮上</strong>：
+        要站稳，必须持续用轮子的力矩/加速度去“托住”倾角；
+        要停在原地，还必须把<strong>轮速</strong>压到期望值（通常 0）。
+      </p>
+      <p>若只用<strong>单环倾角 PD</strong>（或 PD + 轮速阻尼 <code>kv</code>）：</p>
+      <ul>
+        <li>倾角可以暂时稳住，但质心偏移、IMU 零偏、仿真摩擦不对称会导致<strong>稳态前冲/后退</strong>；</li>
+        <li>手工改 <code>pitch_target</code> 只能补偿一个方向，换模型/换电池位置又要重调；</li>
+        <li><code>kv</code> 与“用倾角换加减速”的机制纠缠，增益一大容易和内环打架、缩短平衡时间。</li>
+      </ul>
+      <p><strong>串级 PID</strong>把问题拆成两层，各管一件事：</p>
+      <table>
+        <tr><th>环路</th><th>管什么</th><th>输出</th><th>实现文件</th></tr>
+        <tr>
+          <td><span class="tag tag-outer">外环</span>速度环</td>
+          <td>轮速是否等于期望（站立时 = 0）</td>
+          <td>目标倾角 <code>pitch_target</code></td>
+          <td><code>velocity_loop.py</code></td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-inner">内环</span>倾角环</td>
+          <td>车体倾角是否跟上外环给的 <code>pitch_target</code></td>
+          <td>单轮力矩 <code>τ</code> [N·m]</td>
+          <td><code>balance_pd.py</code></td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-act">执行</span></td>
+          <td>力矩限幅、斜率限制、倒地保护</td>
+          <td>左右轮指令</td>
+          <td><code>safety_limiter.py</code> + ros2_control effort</td>
+        </tr>
+      </table>
+      <div class="ok">
+        <strong>工程结论：</strong>内环保证“不倒”；外环保证“不漂”。LQR 可在后续把两环合并为状态反馈，但串级 PID 更直观、便于分步调参，适合当前课程/仿真阶段。
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section id="sec2">
+      <h2>2. 被控对象与物理直觉</h2>
+
+      <h3>2.1 简化模型</h3>
+      <p>在竖直附近小角度线性化，可写成类似倒立摆 + 轮子的二阶/三阶系统（符号因坐标系而异）：</p>
+      <div class="formula">
+        θ̈ ≈ f(θ, θ̇, τ_wheel) &nbsp;&nbsp;（倾角动力学）<br>
+        ω̇  ≈ g·θ / r  − … + τ_wheel / (m·r²) &nbsp;&nbsp;（轮速/位移与倾角耦合，示意）
+      </div>
+      <p class="muted">
+        精确系数取决于质心高度、总质量、轮半径、摩擦；仿真里还受 Gazebo 接触、力矩饱和、轮子是否打滑影响。
+        控制设计不依赖精确模型，但需理解<strong>两个耦合通道</strong>：
+      </p>
+      <ul>
+        <li><strong>倾角 θ</strong>：偏离竖直 → 重力矩增大 → 必须靠轮子力矩快速纠正，否则倒；</li>
+        <li><strong>轮速 ω</strong>：为维持 θ，轮子会持续转；质心不在轮轴正上方时，维持竖直所需的倾角 ≠ 0，车会<strong>匀速漂移</strong>，除非用倾角“换”加减速度把 ω 拉回 0。</li>
+      </ul>
+
+      <h3>2.2 “用倾角换加减速”</h3>
+      <p>
+        要让车从向前冲（ω &gt; 0）慢下来，需要车体相对竖直方向形成适当的<strong>目标倾角</strong>，
+        使重力沿轮切向的分量产生减速趋势；外环 PI 的作用就是自动算出这个 <code>pitch_target</code>，
+        内环 PD 负责把车体稳定在该倾角附近。
+      </p>
+      <div class="warn">
+        <strong>非最小相位：</strong>你命令“更后仰”时，轮速不会立刻变为负，中间有相位滞后。
+        因此外环增益过大、积分过快会出现<strong>前冲 → 反向晃 → 慢收敛</strong>，这是串级系统的正常现象，靠减小 <code>ki_v</code>、适当加 <code>kd_pitch</code> 抑制。
+      </div>
+
+      <h3>2.3 自然平衡角 θ<sub>natural</sub></h3>
+      <p>
+        当质心略偏前/IMU 有零偏时，维持机械平衡所需的倾角可能为 ±几度。
+        外环积分项会在稳态自动累积到该角度附近，相当于自动估计 θ<sub>natural</sub>，
+        因此 <code>balance_controller.yaml</code> 里的 <code>pitch_target</code> 偏置通常可设很小，仅作微调。
+      </p>
+    </section>
+
+    <!-- 3 -->
+    <section id="sec3">
+      <h2>3. 总体控制架构</h2>
+
+      <div class="diagram">                    ┌─────────────────────────────────────────┐
+  target_velocity ──►│  外环  VelocityLoop (PI)                 │
+  wheel_v (滤波后) ──►│  输入: e_v = ω − ω_ref                   │
+                     │  输出: pitch_target_cmd                  │
+                     └──────────────────┬──────────────────────┘
+                                        │
+                     pitch_target_bias ─┼──► pitch_target = bias + cmd
+                                        ▼
+                     ┌─────────────────────────────────────────┐
+  pitch, pitch_rate ─►│  内环  BalancePD (PD)                  │
+                     │  输入: e_θ = θ − pitch_target           │
+                     │  输出: balance_tau [N·m]                 │
+                     └──────────────────┬──────────────────────┘
+                                        ▼
+                     ┌─────────────────────────────────────────┐
+                     │  WheelMixer → SafetyLimiter → 左右轮 τ    │
+                     └──────────────────┬──────────────────────┘
+                                        ▼
+                          wheel_effort_controller (ros2_control)</div>
+
+      <p>数据来自：</p>
+      <ul>
+        <li><code>/imu/data</code> → <code>AttitudeEstimator</code>：pitch、pitch_rate、yaw；</li>
+        <li><code>/joint_states</code> → 左右轮速平均 + 一阶低通 → <code>wheel_velocity</code>；</li>
+        <li>定时器 <code>control_rate</code>（默认 200 Hz）→ <code>on_timer</code> 中串联两环。</li>
+      </ul>
+    </section>
+
+    <!-- 4 -->
+    <section id="sec4">
+      <h2>4. 外环：速度 PI</h2>
+      <p>实现：<code>src/balance_car_control/src/velocity_loop.py</code>，类型为 <strong>PI（无 D）</strong>，输出为内环的 <code>pitch_target</code>。</p>
+
+      <h3>4.1 误差定义（本车约定）</h3>
+      <p>教科书常写 e = ω<sub>ref</sub> − ω；本实现为：</p>
+      <div class="formula">
+        e_v = ω − ω_ref = wheel_velocity − target_velocity
+      </div>
+      <p>
+        再经 <code>velocity_output_sign</code>（yaml 里可为 ±1）映射到 <code>pitch_target</code>。
+        符号必须通过<strong>实测</strong>确定：轮速向前冲时，外环应给出能“刹车”的倾角方向。
+        若漂移反而加剧，将 <code>velocity_output_sign</code> 改为相反号即可。
+      </p>
+
+      <h3>4.2 控制律</h3>
+      <div class="formula">
+        P_v = Kp_v · e_v<br>
+        I_v 累加: ∫ e_v dt，I_term = Ki_v · ∫ e_v dt<br>
+        pitch_target_raw = sign · (P_v + I_term)<br>
+        pitch_target = clamp(pitch_target_raw, ±pitch_target_limit)
+      </div>
+
+      <h3>4.3 积分限幅（Anti-windup）</h3>
+      <p>
+        对 <strong>I_term 的贡献</strong>限制在 ±<code>velocity_integral_limit</code>，
+        并把积分状态回算为 <code>integral = I_term / Ki_v</code>，避免外环饱和后积分继续堆积（conditional clamp）。
+      </p>
+      <p>当 <code>|pitch_target|</code> 顶到 <code>pitch_target_limit</code> 时，外环失去进一步“要求刹车倾角”的能力，
+        若此时 <code>wheel_v</code> 仍很大，说明需要更大限幅或更强内环跟踪，否则会倒。</p>
+
+      <h3>4.4 外环各项物理意义</h3>
+      <table>
+        <tr><th>项</th><th>作用</th><th>过大时</th></tr>
+        <tr>
+          <td><code>Kp_v</code></td>
+          <td>轮速一偏离就立刻改目标倾角；抑制<strong>启动前冲</strong></td>
+          <td>反应过猛、与内环相位叠加 → 高频抖</td>
+        </tr>
+        <tr>
+          <td><code>Ki_v</code></td>
+          <td>消除稳态漂移，自动找 θ<sub>natural</sub></td>
+          <td>低频来回晃（hunting）、收敛慢</td>
+        </tr>
+        <tr>
+          <td><code>pitch_target_limit</code></td>
+          <td>保护内环，限制最大“刹车倾角”</td>
+          <td>太小 → 顶死仍刹不住；太大 → 内环跟不上易倒</td>
+        </tr>
+      </table>
+
+      <h3>4.5 复位条件</h3>
+      <p><code>VelocityLoop.reset()</code> 在以下情况调用，清空积分：</p>
+      <ul>
+        <li>安全停车（倒地、IMU 超时等）；</li>
+        <li><code>enabled=false</code> 观察模式。</li>
+      </ul>
+      <p class="muted">防止倒地期间积分饱和，重新 enable 时“甩头”。</p>
+
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code># velocity_loop.py 核心（节选）
+v_error = wheel_velocity - target_velocity
+p_term = kp_v * v_error
+_integral += v_error * dt
+i_term = ki_v * _integral   # 并对 i_term 做 integral_limit
+pitch_target = output_sign * (p_term + i_term)
+pitch_target = clamp(pitch_target, ±pitch_target_limit)</code></pre>
+      </div>
+    </section>
+
+    <!-- 5 -->
+    <section id="sec5">
+      <h2>5. 内环：倾角 PD</h2>
+      <p>实现：<code>src/balance_car_control/src/balance_pd.py</code>。串级模式下 <code>kv_wheel</code> 应置 0，轮速完全交给外环。</p>
+
+      <h3>5.1 控制律</h3>
+      <div class="formula">
+        e_θ = pitch − pitch_target<br>
+        τ_balance = sign · ( Kp_pitch · e_θ + Kd_pitch · pitch_rate )
+      </div>
+      <p>
+        注意：<strong>本车实现为 +Kd·pitch_rate</strong>，与部分教材 cart-pole 公式的减号不同，
+        由 URDF/IMU 坐标系下 <code>pitch_rate</code> 与“倒下方向”的同号关系决定（见代码注释）。
+        调参时以<strong>加 Kd 是否更稳</strong>为准，不要机械套用教科书符号。
+      </p>
+
+      <h3>5.2 内环各项物理意义</h3>
+      <table>
+        <tr><th>参数</th><th>单位</th><th>作用</th></tr>
+        <tr><td><code>Kp_pitch</code></td><td>N·m/rad</td><td>倾角误差 → 力矩；决定“站得住”的基本刚度</td></tr>
+        <tr><td><code>Kd_pitch</code></td><td>N·m/(rad/s)</td><td>阻尼角速度；抑制摆动、帮助跟踪外环给的 pitch_target</td></tr>
+        <tr><td><code>pitch_target</code></td><td>rad</td><td>节点里 = bias + 外环输出；外环开启时 bias 宜小</td></tr>
+      </table>
+
+      <h3>5.3 与力矩饱和、打滑</h3>
+      <p>
+        下游为 <code>effort_controllers/JointGroupEffortController</code>，<code>max_wheel_effort</code> 必须受地面摩擦限制。
+        若 τ 过大轮子空转，内环等效增益崩溃，串级两环同时失效。
+        经验：μ≈1、m≈0.76 kg、r≈32.5 mm 时单轮 slip 阈值约 <strong>0.12 N·m</strong>（yaml 中可能略放宽到 0.24 用于仿真裕度）。
+      </p>
+
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code># balance_pd.py 核心（节选）
+pitch_error = pitch - pitch_target
+raw_effort = kp_pitch * pitch_error + kd_pitch * pitch_rate
+return output_sign * raw_effort</code></pre>
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section id="sec6">
+      <h2>6. 节点中的信号流与执行周期</h2>
+      <p>实现：<code>balance_controller_node.py</code> 的 <code>on_timer</code>：</p>
+      <ol>
+        <li>读取 <code>BalanceState</code>（IMU + 滤波轮速）；</li>
+        <li>安全检查（倾角过大、IMU 超时）→ 失败则 <code>velocity_loop.reset()</code> + 力矩置零；</li>
+        <li>若 enabled：<code>pitch_cmd = velocity_loop.compute(ω, dt)</code>；</li>
+        <li><code>balance_pd.config.pitch_target = pitch_target_bias + pitch_cmd</code>；</li>
+        <li><code>τ = balance_pd.compute(state)</code> → 混合左右轮 → 限幅 → 发布。</li>
+      </ol>
+
+      <h3>6.1 时间尺度</h3>
+      <table>
+        <tr><th>环节</th><th>典型频率</th><th>说明</th></tr>
+        <tr><td>控制定时器</td><td>200 Hz</td><td><code>control_rate</code></td></tr>
+        <tr><td>IMU</td><td>200 Hz（URDF）</td><td>与内环匹配</td></tr>
+        <tr><td>joint_states / 轮速 LPF</td><td>随仿真</td><td><code>wheel_velocity_lpf_alpha</code> 越小越平滑、滞后越大</td></tr>
+        <tr><td>Gazebo /clock</td><td>应接近物理步率</td><td>RTF 过低会导致等效控制频率暴跌</td></tr>
+      </table>
+
+      <div class="note">
+        <strong>仿真时间：</strong><code>use_sim_time: true</code> 时定时器跟随 <code>/clock</code>。
+        若 <code>ros2 topic hz /clock</code> 只有 ~10 Hz，控制环实际只有 ~10 Hz，再高的增益也会失效。
+      </div>
+    </section>
+
+    <!-- 7 -->
+    <section id="sec7">
+      <h2>7. 参数表与单位</h2>
+      <p>以下与 <code>config/balance_controller.yaml</code> 对应（你本地数值可能已调过）：</p>
+      <table>
+        <tr><th>参数</th><th>环</th><th>单位</th><th>含义</th></tr>
+        <tr><td><code>target_velocity</code></td><td>外</td><td>rad/s</td><td>期望轮速；站立 = 0，以后前进/后退设非零</td></tr>
+        <tr><td><code>kp_v</code></td><td>外</td><td>rad/(rad/s)</td><td>速度比例增益</td></tr>
+        <tr><td><code>ki_v</code></td><td>外</td><td>rad/(rad/s·s)</td><td>速度积分增益</td></tr>
+        <tr><td><code>pitch_target_limit</code></td><td>外</td><td>rad</td><td>外环输出倾角限幅</td></tr>
+        <tr><td><code>velocity_integral_limit</code></td><td>外</td><td>rad</td><td>积分项贡献限幅</td></tr>
+        <tr><td><code>velocity_output_sign</code></td><td>外</td><td>±1</td><td>外环输出符号（实测确定）</td></tr>
+        <tr><td><code>pitch_target</code></td><td>偏置</td><td>rad</td><td>叠加在外环输出上的固定倾角 trim</td></tr>
+        <tr><td><code>kp_pitch</code></td><td>内</td><td>N·m/rad</td><td>倾角比例</td></tr>
+        <tr><td><code>kd_pitch</code></td><td>内</td><td>N·m/(rad/s)</td><td>角速度阻尼</td></tr>
+        <tr><td><code>kv_wheel</code></td><td>内</td><td>—</td><td>串级时应为 0</td></tr>
+        <tr><td><code>max_wheel_effort</code></td><td>安全</td><td>N·m</td><td>单轮力矩饱和</td></tr>
+        <tr><td><code>wheel_velocity_lpf_alpha</code></td><td>传感</td><td>—</td><td>轮速低通，(0,1]，1=不滤波</td></tr>
+      </table>
+    </section>
+
+    <!-- 8 -->
+    <section id="sec8">
+      <h2>8. 调参方法与典型现象</h2>
+
+      <h3>8.1 推荐顺序</h3>
+      <ol>
+        <li><strong>内环单独能站</strong>：外环 <code>kp_v=ki_v=0</code> 或 <code>velocity_loop_enabled=false</code>，调 <code>kp_pitch</code>、<code>kd_pitch</code>；</li>
+        <li><strong>开外环，先 P 后 I</strong>：小 <code>kp_v</code> 抑制前冲；稳后再小步加 <code>ki_v</code> 消稳态漂移；</li>
+        <li><strong>内环跟踪</strong>：若 <code>pitch</code> 长期跟不上 <code>pitch_tgt</code>，略增 <code>kp_pitch</code> 或 <code>kd_pitch</code>，并检查力矩是否顶饱和；</li>
+        <li><strong>外环限幅</strong>：日志里 <code>pitch_tgt</code> 长时间钉在 ±limit 且 <code>wheel_v</code> 仍大 → 提高 limit 或加强内环/外环 P（谨慎）。</li>
+      </ol>
+
+      <h3>8.2 现象对照</h3>
+      <table>
+        <tr><th>现象</th><th>可能原因</th><th>建议</th></tr>
+        <tr>
+          <td>启动后向前冲一段</td>
+          <td>外环反应慢；积分从 0 爬升</td>
+          <td>略增 <code>kp_v</code>；勿同时猛加 <code>ki_v</code></td>
+        </tr>
+        <tr>
+          <td>前冲后来回慢晃</td>
+          <td><code>ki_v</code> 过大；环间相位滞后</td>
+          <td>减 <code>ki_v</code>；略增 <code>kd_pitch</code></td>
+        </tr>
+        <tr>
+          <td>稳态 <code>wheel_v</code> 小常数 ≠ 0</td>
+          <td>积分不够或偏置未抵消</td>
+          <td>微增 <code>ki_v</code> 或微调 <code>pitch_target</code> bias</td>
+        </tr>
+        <tr>
+          <td><code>pitch_tgt</code> 顶限幅仍飞车</td>
+          <td>外环“想刹”但内环/力矩跟不上</td>
+          <td>检查 <code>max_wheel_effort</code>、<code>kp_pitch</code>、limit</td>
+        </tr>
+        <tr>
+          <td>越调越倒、漂移加速</td>
+          <td>外环符号反了</td>
+          <td>翻转 <code>velocity_output_sign</code></td>
+        </tr>
+      </table>
+
+      <h3>8.3 带宽直觉</h3>
+      <p>
+        内环带宽应<strong>明显高于</strong>外环（倾角响应比速度调节快一个数量级左右），
+        这样外环改 <code>pitch_target</code> 时，内环能近似跟踪，串级分析才成立。
+        若内环太“软”（<code>kp_pitch</code> 小、力矩饱和），外环看到的就像“慢植物”，容易振荡。
+      </p>
+    </section>
+
+    <!-- 9 -->
+    <section id="sec9">
+      <h2>9. 与单环 kv、与 LQR 的关系</h2>
+
+      <h3>9.1 串级 vs 单环 + kv</h3>
+      <table>
+        <tr><th></th><th>单环 PD + kv</th><th>串级 PI(速度) + PD(倾角)</th></tr>
+        <tr>
+          <td>稳态漂移</td>
+          <td>靠手工 pitch_target 或 kv 勉强压</td>
+          <td>外环积分自动找平</td>
+        </tr>
+        <tr>
+          <td>速度设定</td>
+          <td>无显式 ω_ref</td>
+          <td><code>target_velocity</code> 可直接设前进/后退</td>
+        </tr>
+        <tr>
+          <td>调参</td>
+          <td>kp/kd/kv 耦合</td>
+          <td>先内后外，分工清晰</td>
+        </tr>
+      </table>
+
+      <h3>9.2 与 LQR 的衔接</h3>
+      <p>
+        LQR 对线性化模型 <code>ẋ = Ax + Bu</code> 求状态反馈 <code>u = −Kx</code>，
+        状态常取 <code>[θ, θ̇, x, ẋ]</code> 或含轮角速度的形式。
+        串级 PID 可看作对同一状态的<strong>分块、带限幅的近似解</strong>：
+      </p>
+      <ul>
+        <li>外环 ≈ 对轮速/位移通道的积分反馈；</li>
+        <li>内环 ≈ 对 θ、θ̇ 的 PD 反馈；</li>
+        <li>LQR 优势：多变量耦合一次优化、有稳定性理论；劣势：模型依赖、实现与调参门槛更高。</li>
+      </ul>
+      <p class="muted">本仓库后续可在同一 <code>BalanceState</code> 上切换 Controller 策略，保留 safety 与 mixer 层不变。</p>
+    </section>
+
+    <!-- 10 -->
+    <section id="sec10">
+      <h2>10. 调试话题与验收指标</h2>
+
+      <h3>10.1 <code>/balance_controller/debug</code> 布局</h3>
+      <table>
+        <tr><th>下标</th><th>量</th><th>单位</th></tr>
+        <tr><td>0</td><td>pitch</td><td>rad</td></tr>
+        <tr><td>1</td><td>pitch_rate</td><td>rad/s</td></tr>
+        <tr><td>2</td><td>pitch_target（含 bias + 外环）</td><td>rad</td></tr>
+        <tr><td>3</td><td>balance_tau</td><td>N·m</td></tr>
+        <tr><td>4,5</td><td>left_tau, right_tau</td><td>N·m</td></tr>
+        <tr><td>6</td><td>enabled</td><td>0/1</td></tr>
+        <tr><td>7</td><td>yaw</td><td>rad</td></tr>
+        <tr><td>8</td><td>wheel_velocity</td><td>rad/s</td></tr>
+      </table>
+
+      <h3>10.2 建议验收（PlotJuggler / rosbag）</h3>
+      <ul>
+        <li>启动 3~5 s 内 |wheel_v| &lt; 1 rad/s；</li>
+        <li>稳态 |wheel_v| &lt; 0.2 rad/s，|pitch − pitch_target| &lt; 1°；</li>
+        <li>pitch_target 不长期顶在 ±pitch_target_limit；</li>
+        <li>|balance_tau| 多数时间远小于 max_wheel_effort（未持续打滑）。</li>
+      </ul>
+
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code># 录制与查看
+ros2 bag record /balance_controller/debug /imu/data /joint_states /wheel_effort_controller/commands
+# PlotJuggler 同时画: wheel_v, data[2] pitch_target, pitch, balance_tau</code></pre>
+      </div>
+    </section>
+
+    <footer>
+      文档路径：docs/cascaded_pid_theory.html · 对应 balance_car_control 串级实现 · 生成供课程与调参参考
+    </footer>
+  </main>
+
+  <script>
+    document.querySelectorAll(".code-block").forEach(function (block) {
+      var button = block.querySelector(".copy-button");
+      var code = block.querySelector("code");
+      if (!button || !code) return;
+
+      button.addEventListener("click", async function () {
+        var text = code.innerText;
+        try {
+          await navigator.clipboard.writeText(text);
+          var original = button.textContent;
+          button.textContent = "已复制";
+          setTimeout(function () { button.textContent = original; }, 1500);
+        } catch (err) {
+          button.textContent = "失败";
+          setTimeout(function () { button.textContent = "复制"; }, 1500);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

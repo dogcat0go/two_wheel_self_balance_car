@@ -40,6 +40,7 @@ install(FILES
   src/attitude_estimator.py
   src/balance_pd.py
   src/velocity_loop.py
+  src/position_loop.py
   src/motion_command.py
   src/yaw_loop.py
   src/safety_limiter.py

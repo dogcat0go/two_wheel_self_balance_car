@@ -19,6 +19,9 @@ class BalanceState:
     yaw: float = 0.0
     yaw_rate: float = 0.0
     wheel_velocity: float = 0.0
+    # 左右轮平均角位置 [rad]，由 joint_states 的 position 求平均。
+    # 位置环用它估计累计行程（≈ wheel_position × wheel_radius）。
+    wheel_position: float = 0.0
 
 
 @dataclass

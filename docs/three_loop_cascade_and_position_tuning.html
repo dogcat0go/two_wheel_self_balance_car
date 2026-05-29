@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>三环串级原理与位置环调参 · 两轮自平衡车</title>
+  <style>
+    :root {
+      --bg: #f6f8fb; --panel: #fff; --ink: #1f2937; --muted: #667085;
+      --line: #d8dee9; --blue: #2563eb; --green: #0f766e; --orange: #b45309;
+      --red: #b91c1c; --purple: #6d28d9; --code-bg: #111827; --code-ink: #e5e7eb;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif; line-height: 1.65; }
+    header { background: linear-gradient(135deg, #111827, #6d28d9); color: white; padding: 46px 24px; }
+    header .wrap, main { max-width: 1160px; margin: 0 auto; }
+    h1 { margin: 0 0 12px; font-size: clamp(28px, 4vw, 40px); }
+    header p { max-width: 940px; margin: 0; color: #ede9fe; font-size: 17px; }
+    main { padding: 28px 20px 56px; }
+    nav, section { background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+      box-shadow: 0 10px 28px rgb(15 23 42 / 6%); padding: 24px; margin-bottom: 20px; }
+    nav ul { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+    @media (max-width: 720px) { nav ul { columns: 1; } }
+    h2 { margin: 0 0 16px; font-size: 24px; color: var(--purple); border-bottom: 2px solid #ddd6fe; padding-bottom: 8px; }
+    h3 { margin: 24px 0 10px; font-size: 18px; color: var(--blue); }
+    h4 { margin: 16px 0 8px; font-size: 16px; color: var(--green); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; }
+    th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+    th { background: #f5f3ff; }
+    .formula { background: #fffbeb; border-left: 4px solid var(--orange); padding: 12px 16px; margin: 12px 0;
+      font-family: ui-monospace, Consolas, monospace; font-size: 14px; }
+    .note { background: #eff6ff; border-left: 4px solid var(--blue); padding: 12px 16px; margin: 12px 0; font-size: 14px; }
+    .warn { background: #fef2f2; border-left: 4px solid var(--red); padding: 12px 16px; margin: 12px 0; font-size: 14px; }
+    .ok { background: #f0fdf4; border-left: 4px solid var(--green); padding: 12px 16px; margin: 12px 0; font-size: 14px; }
+    .diagram { background: #f8fafc; border: 1px dashed var(--line); border-radius: 12px; padding: 16px;
+      overflow-x: auto; font-family: ui-monospace, Consolas, monospace; font-size: 13px; white-space: pre; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-right: 6px; }
+    .tag-pos { background: #ede9fe; color: #6d28d9; }
+    .tag-vel { background: #dbeafe; color: #1d4ed8; }
+    .tag-pitch { background: #d1fae5; color: #065f46; }
+    .steps { counter-reset: tune; list-style: none; padding: 0; }
+    .steps li { position: relative; padding: 12px 12px 12px 48px; margin: 10px 0; background: #f8fafc;
+      border-radius: 10px; border: 1px solid var(--line); counter-increment: tune; }
+    .steps li::before { content: counter(tune); position: absolute; left: 14px; top: 12px;
+      width: 24px; height: 24px; background: var(--purple); color: white; border-radius: 50%;
+      text-align: center; line-height: 24px; font-size: 13px; font-weight: 700; }
+    .code-block { position: relative; margin: 12px 0; }
+    .code-block pre { margin: 0; background: var(--code-bg); color: var(--code-ink); border-radius: 12px;
+      padding: 16px 44px 16px 16px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+    .copy-button { position: absolute; top: 8px; right: 8px; border: 1px solid #374151; background: #1f2937;
+      color: #e5e7eb; border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+    footer { text-align: center; color: var(--muted); font-size: 13px; padding: 20px; }
+    .muted { color: var(--muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>三环串级原理与位置环调参</h1>
+      <p>
+        在「速度环 + 倾角环」之上接入<strong>位置环</strong>，构成
+        <strong>位置 → 速度 → 倾角</strong> 三环串级，主要解决「停车时倒退一点、停不回原位」。
+        本文档说明三环原理、位置环实现与符号、以及位置环的逐步调参方法和现象对照。
+        对应代码：<code>position_loop.py</code> / <code>velocity_loop.py</code> / <code>balance_pd.py</code>。
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <nav>
+      <h2 style="border:none;color:var(--ink);">目录</h2>
+      <ul>
+        <li><a href="#why">1. 为什么要位置环</a></li>
+        <li><a href="#arch">2. 三环架构</a></li>
+        <li><a href="#pos-theory">3. 位置环原理与公式</a></li>
+        <li><a href="#sign">4. 设定值积分与符号</a></li>
+        <li><a href="#params">5. 参数与 debug 话题</a></li>
+        <li><a href="#tune">6. 位置环调参步骤</a></li>
+        <li><a href="#symptom">7. 现象 → 改参对照</a></li>
+        <li><a href="#test">8. 测试命令</a></li>
+        <li><a href="#limit">9. 局限与通往 LQR</a></li>
+      </ul>
+    </nav>
+
+    <!-- 1 -->
+    <section id="why">
+      <h2>1. 为什么要位置环</h2>
+      <p>停车的物理过程（无法回避）：</p>
+      <div class="diagram">前进中 → 要停 → 命令后仰刹车 → 车体后倾
+       → 轮子先“倒退一点”把质心追回竖直 → 速度归零 → 停下</div>
+      <p>
+        纯<strong>速度环</strong>只保证 <code>wheel_v → 0</code>，<strong>不关心停在哪</strong>。
+        所以那一点刹车倒退量不会被补回来，车停在「倒退后的新位置」。
+      </p>
+      <div class="ok">
+        <strong>位置环的职责：</strong>记住一个目标位置 <code>x_target</code>，停车时把倒退的行程再开回来，
+        实现「停回原点」。这一步用 PID 即可，不需要 LQR。
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section id="arch">
+      <h2>2. 三环架构</h2>
+      <div class="diagram">  v_cmd (来自 /cmd_vel 或静态 target_velocity)
+     │
+     ▼
+  ┌──────────────────────────────────────────────────────────┐
+  │ 位置环 PositionLoop (最外, PD)                            │
+  │   x_target += v_cmd · dt        （停车时 v_cmd=0 → 冻结） │
+  │   v_corr = kp_x·(x_target − x) + kd_x·(v_cmd − wheel_v)   │
+  │   v_setpoint = v_cmd + v_corr                            │
+  └───────────────┬──────────────────────────────────────────┘
+                  ▼  v_setpoint
+  ┌──────────────────────────────────────────────────────────┐
+  │ 速度环 VelocityLoop (中间, PI)                            │
+  │   pitch_target = f(wheel_v − v_setpoint)                 │
+  └───────────────┬──────────────────────────────────────────┘
+                  ▼  pitch_target
+  ┌──────────────────────────────────────────────────────────┐
+  │ 倾角环 BalancePD (最内, PD)                               │
+  │   balance_tau = kp·(pitch − pitch_target) + kd·pitch_rate│
+  └───────────────┬──────────────────────────────────────────┘
+                  ▼  balance_tau → Mixer → Safety → 轮子</div>
+
+      <table>
+        <tr><th>环</th><th>输入</th><th>输出</th><th>时间尺度</th></tr>
+        <tr><td><span class="tag tag-pos">位置</span></td><td>x 误差</td><td>速度设定 v_setpoint</td><td>最慢</td></tr>
+        <tr><td><span class="tag tag-vel">速度</span></td><td>速度误差</td><td>目标倾角 pitch_target</td><td>中</td></tr>
+        <tr><td><span class="tag tag-pitch">倾角</span></td><td>pitch 误差</td><td>力矩 τ</td><td>最快</td></tr>
+      </table>
+      <div class="note">
+        三环都在同一个 <code>on_timer</code>（200 Hz）里顺序执行：先算位置环 → 速度环 → 倾角环。
+        “外环更慢”靠的是<strong>增益小</strong>，不是更低的频率。带宽必须 位置 &lt; 速度 &lt; 倾角，串级才稳。
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section id="pos-theory">
+      <h2>3. 位置环原理与公式</h2>
+
+      <h3>3.1 状态量</h3>
+      <ul>
+        <li><code>x = wheel_position</code>：左右轮平均角位置 [rad]，来自 <code>/joint_states</code> 的 position；行程 ≈ <code>x × wheel_radius</code>。</li>
+        <li><code>x_target</code>：目标位置 [rad]，由位置环内部维护。</li>
+      </ul>
+
+      <h3>3.2 控制律</h3>
+      <div class="formula">
+        x_target += v_cmd · dt                         （设定值积分，见下一节）<br>
+        pos_error = x_target − x   （并做 ±max_position_error 限幅 anti-windup）<br>
+        v_corr = sign · ( kp_x · pos_error + kd_x · (v_cmd − wheel_v) )<br>
+        v_corr = clamp(v_corr, ±max_velocity_correction)<br>
+        v_setpoint = v_cmd + v_corr   →  送入速度环
+      </div>
+
+      <h3>3.3 各项作用</h3>
+      <table>
+        <tr><th>项</th><th>作用</th><th>过大时</th></tr>
+        <tr><td><code>kp_x</code></td><td>位置一偏就产生速度修正，把车开回 x_target</td><td>停车点附近来回蹭、低频振荡</td></tr>
+        <tr><td><code>kd_x</code></td><td>位置误差变化率阻尼（默认 0，阻尼交给速度环）</td><td>对噪声敏感</td></tr>
+        <tr><td><code>max_velocity_correction</code></td><td>限制位置环最多要求多大速度</td><td>太大 → 回位猛、冲过头</td></tr>
+        <tr><td><code>max_position_error</code></td><td>限制“记多远”，anti-windup</td><td>太小 → 远距离回不来；太大 → 长时间追赶</td></tr>
+      </table>
+
+      <h3>3.4 为什么是“P 为主”</h3>
+      <p>
+        位置的微分就是速度，而速度已由<strong>速度环</strong>负责阻尼。所以位置环默认只用 P（<code>kd_x=0</code>），
+        避免和速度环重复加阻尼、互相打架。需要更稳时再小量加 <code>kd_x</code>。
+      </p>
+    </section>
+
+    <!-- 4 -->
+    <section id="sign">
+      <h2>4. 设定值积分与符号（关键）</h2>
+
+      <h3>4.1 x_target 为什么要积分 v_cmd</h3>
+      <table>
+        <tr><th>工况</th><th>v_cmd</th><th>x_target 行为</th><th>效果</th></tr>
+        <tr><td>站立 / 停车</td><td>0</td><td>冻结在停车点</td><td>位置环把倒退量拉回 → 不留位移</td></tr>
+        <tr><td>前进 / 后退</td><td>≠ 0</td><td>以 v_cmd 速率移动</td><td>位置环帮助跟踪行程，不和行驶打架</td></tr>
+      </table>
+      <p>同一套逻辑兼顾「停回原位」与「正常行驶」，无需额外的状态切换。</p>
+
+      <h3>4.2 符号约定</h3>
+      <ul>
+        <li><code>x</code>、<code>wheel_v</code>、<code>v_cmd</code> 同一方向约定：正 = 前进（与 cmd_vel 的 linear.x 一致）。</li>
+        <li>车<strong>倒退</strong> → <code>x</code> 减小 → <code>pos_error = x_target − x</code> 为正 → <code>v_corr</code> 正（前进）→ 开回原点。</li>
+        <li>若开启位置环后<strong>越跑越远 / 发散</strong>：把 <code>position_output_sign</code> 改为 <code>-1.0</code>。</li>
+      </ul>
+
+      <h3>4.3 使能 / 复位</h3>
+      <p>以下情况 <code>position_loop.reset(当前 x)</code>，把 <code>x_target</code> 对齐当前轮位置，避免使能瞬间产生大误差甩车：</p>
+      <ul>
+        <li>安全停车（倒地 / IMU 超时）；</li>
+        <li><code>enabled=false</code> 观察模式；</li>
+        <li><code>position_loop_enabled=false</code> 时直通：<code>v_setpoint = v_cmd</code>（退回两环行为）。</li>
+      </ul>
+    </section>
+
+    <!-- 5 -->
+    <section id="params">
+      <h2>5. 参数与 debug 话题</h2>
+
+      <h3>5.1 yaml 位置环段</h3>
+      <table>
+        <tr><th>参数</th><th>默认</th><th>说明</th></tr>
+        <tr><td><code>position_loop_enabled</code></td><td>true</td><td>关 → 退回速度+倾角两环</td></tr>
+        <tr><td><code>kp_x</code></td><td>0.4</td><td>位置误差 → 速度修正</td></tr>
+        <tr><td><code>kd_x</code></td><td>0.0</td><td>误差变化率阻尼（常留 0）</td></tr>
+        <tr><td><code>max_velocity_correction</code></td><td>3.0 rad/s</td><td>位置环速度修正上限</td></tr>
+        <tr><td><code>max_position_error</code></td><td>20 rad</td><td>≈0.65 m，anti-windup</td></tr>
+        <tr><td><code>position_output_sign</code></td><td>1.0</td><td>发散就翻 −1</td></tr>
+      </table>
+
+      <h3>5.2 /balance_controller/debug 新增下标</h3>
+      <table>
+        <tr><th>下标</th><th>量</th><th>用途</th></tr>
+        <tr><td>8</td><td>wheel_velocity</td><td>速度环反馈</td></tr>
+        <tr><td>9</td><td>target_wheel_velocity（v_cmd）</td><td>位置环修正前的命令速度</td></tr>
+        <tr><td>13</td><td>wheel_position (x)</td><td>位置环被控量</td></tr>
+        <tr><td>14</td><td>x_target</td><td>位置环目标</td></tr>
+        <tr><td>15</td><td>velocity_setpoint</td><td>位置环修正后喂给速度环</td></tr>
+      </table>
+      <div class="note">看位置环是否工作：画 <code>x</code> 与 <code>x_target</code>，停车后两者应收敛重合；
+        <code>velocity_setpoint</code> 在停车回位时应短暂非零再回 0。</div>
+    </section>
+
+    <!-- 6 -->
+    <section id="tune">
+      <h2>6. 位置环调参步骤</h2>
+
+      <div class="warn">
+        <strong>前提：</strong>速度环已调稳（站立 |wheel_v| 小、停车基本不晃，只是会倒退一点）。
+        位置环是在“能停住”的基础上消除残余位移，<strong>不要</strong>用它救“站不住”。
+      </div>
+
+      <h3>6.1 起步配置</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>position_loop_enabled: true
+kp_x: 0.4
+kd_x: 0.0
+max_velocity_correction: 3.0
+max_position_error: 20.0
+position_output_sign: 1.0</code></pre>
+      </div>
+
+      <h3>6.2 推荐步骤</h3>
+      <ol class="steps">
+        <li><strong>先验证符号：</strong>站立 → 用手轻推车前进一点松手。位置环应让车<strong>自己开回</strong>原位附近。若反而加速跑开 → <code>position_output_sign: -1.0</code>。</li>
+        <li><strong>加 kp_x 消倒退：</strong>从 0.4 起，每次 ×1.3。前进后停车，看停下后是否自动补回起步点（debug 里 <code>x</code> 回到 <code>x_target</code>）。</li>
+        <li><strong>抑制来回蹭：</strong>若停车点附近反复前后蹭（低频），<code>kp_x</code> 偏大 → 回退一档；必要时加一点 <code>kd_x</code>（0.05~0.1）。</li>
+        <li><strong>回位太猛：</strong>松手后冲过原点再荡回 → 降 <code>max_velocity_correction</code>（如 3.0→2.0）或降 <code>kp_x</code>。</li>
+        <li><strong>行驶验证：</strong>发 cmd_vel 前进再停，确认行驶顺滑、停车不留明显位移、不与速度环打架。</li>
+      </ol>
+
+      <h3>6.3 验收标准</h3>
+      <ul>
+        <li>前进后停车，最终停点与“开始减速点 + 命令行程”之差很小（残余位移小）；</li>
+        <li>站立时 <code>x</code> 与 <code>x_target</code> 基本重合、不持续发散；</li>
+        <li>无停车点附近的持续低频前后蹭。</li>
+      </ul>
+    </section>
+
+    <!-- 7 -->
+    <section id="symptom">
+      <h2>7. 现象 → 改参对照</h2>
+      <table>
+        <tr><th>现象</th><th>先看</th><th>改（优先级）</th></tr>
+        <tr><td>开位置环后越跑越远 / 发散</td><td>符号</td><td><code>position_output_sign</code> 翻 −1</td></tr>
+        <tr><td>停车仍明显倒退</td><td>x 是否回 x_target</td><td>加大 <code>kp_x</code></td></tr>
+        <tr><td>停车点附近来回蹭（低频晃）</td><td>kp_x 过大</td><td>减 <code>kp_x</code>，可加一点 <code>kd_x</code></td></tr>
+        <tr><td>松手回位冲过头再荡回</td><td>回位速度太大</td><td>降 <code>max_velocity_correction</code></td></tr>
+        <tr><td>远距离推走后回不来</td><td>误差被限幅</td><td>加大 <code>max_position_error</code></td></tr>
+        <tr><td>行驶时被“往回拽”、跑不动</td><td>x_target 落后</td><td>确认积分 v_cmd 生效；必要时降 kp_x</td></tr>
+        <tr><td>一开位置环就倒</td><td>速度环本就不稳</td><td>先关位置环调速度/倾角环</td></tr>
+      </table>
+    </section>
+
+    <!-- 8 -->
+    <section id="test">
+      <h2>8. 测试命令</h2>
+      <p>改 yaml 后重启控制节点即可（symlink-install 下不必重新 build；本次新增了 <code>position_loop.py</code>，首次需 build 一次）。</p>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code># 首次（新增模块）
+colcon build --packages-select balance_car_control --symlink-install
+source install/setup.bash
+
+# 启动控制（非仿真时间）
+ros2 launch balance_car_control balance_controller.launch.py enabled:=true use_sim_time:=false</code></pre>
+      </div>
+
+      <h4>前进一段再停（看是否停回行程末点、不倒退）</h4>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code># 发 2 秒前进，然后 Ctrl-C 停止发布（超时后 v_cmd→0，位置环保持）
+ros2 topic pub --rate 20 /cmd_vel geometry_msgs/msg/Twist \
+  "{linear: {x: 0.1, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"</code></pre>
+      </div>
+
+      <h4>观察位置环</h4>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code># 看 x(13) 与 x_target(14) 是否收敛，velocity_setpoint(15) 停车回位时短暂非零
+ros2 topic echo /balance_controller/debug --field data</code></pre>
+      </div>
+    </section>
+
+    <!-- 9 -->
+    <section id="limit">
+      <h2>9. 局限与通往 LQR</h2>
+      <ul>
+        <li>位置用 <code>joint_states</code> 轮角积分，<strong>无打滑/里程计漂移校正</strong>，长距离会累积误差；站立保位、短程足够。</li>
+        <li>三环是<strong>分块近似</strong>：位置、速度、倾角分别 PID，环间耦合靠“外慢内快”保证，非全局最优。</li>
+        <li><strong>LQR</strong> 把 <code>[θ, θ̇, x, ẋ]</code> 一起优化为 <code>u = −Kx</code>：天然包含位置项，可同时兼顾平衡与停位，是这套三环的统一升级。</li>
+        <li>迁移时可复用现有 <code>BalanceState</code>（已含 pitch、pitch_rate、wheel_velocity、wheel_position）、safety 与 mixer，只替换控制律。</li>
+      </ul>
+      <div class="ok">
+        相关文档：<code>docs/cascaded_pid_theory.html</code>、<code>docs/balance_velocity_tuning_guide.html</code>、<code>docs/motion_control_framework.html</code>。
+      </div>
+    </section>
+
+    <footer>docs/three_loop_cascade_and_position_tuning.html · 位置/速度/倾角三环串级与位置环调参</footer>
+  </main>
+
+  <script>
+    document.querySelectorAll(".code-block").forEach(function (block) {
+      var button = block.querySelector(".copy-button");
+      var code = block.querySelector("code");
+      if (!button || !code) return;
+      button.addEventListener("click", async function () {
+        try {
+          await navigator.clipboard.writeText(code.innerText);
+          var t = button.textContent;
+          button.textContent = "已复制";
+          setTimeout(function () { button.textContent = t; }, 1500);
+        } catch (e) {
+          button.textContent = "失败";
+          setTimeout(function () { button.textContent = "复制"; }, 1500);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

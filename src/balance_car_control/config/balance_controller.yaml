@@ -57,6 +57,22 @@ balance_controller_node:
     # 符号开关：若开外环后"漂移反而被加速"，把它改成 -1.0 翻转。
     velocity_output_sign: -1.0
 
+    # ===== 串级最外环：位置环（输出速度设定给速度环）=====
+    # 作用：消除“停车倒退”。x_target 积分被命令速度，停车(v=0)时冻结，
+    # 把刹车时倒退的那点行程再补回来；行驶时 x_target 随指令移动，不打架。
+    # 调参顺序：速度环调稳后再开；kp_x 从小往大加。
+    position_loop_enabled: true
+    # kp_x：位置误差(rad) → 速度修正(rad/s)。先 0.3~0.6，过大停车点附近来回蹭。
+    kp_x: 0.4
+    # kd_x：位置误差变化率阻尼，一般留 0，阻尼交给速度环。
+    kd_x: 0.0
+    # 位置环最多能要求的速度修正(rad/s)，保护速度环不被拉爆。
+    max_velocity_correction: 3.0
+    # 位置误差 anti-windup 限幅(rad)，限制“记多远”。20rad ≈ 0.65m 行程。
+    max_position_error: 20.0
+    # 符号开关：若开位置环后“越跑越远/发散”，改成 -1.0。
+    position_output_sign: 1.0
+
     # ===== 运动指令：/cmd_vel → 速度 + 方向（框架）=====
     cmd_vel_topic: /cmd_vel
     motion_control_enabled: true

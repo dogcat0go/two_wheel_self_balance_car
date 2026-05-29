@@ -39,6 +39,7 @@ class AttitudeEstimator:
         """
         self._latest_state = None
         self._wheel_velocity = 0.0
+        self._wheel_position = 0.0
         self._wheel_velocity_lpf_alpha = wheel_velocity_lpf_alpha
         self._wheel_velocity_initialized = False
 
@@ -53,13 +54,17 @@ class AttitudeEstimator:
             yaw=yaw,
             yaw_rate=imu_msg.angular_velocity.z,
             wheel_velocity=self._wheel_velocity,
+            wheel_position=self._wheel_position,
         )
 
     def update_wheel_velocity(self, joint_state_msg):
         velocities = {}
+        positions = {}
         for index, name in enumerate(joint_state_msg.name):
             if index < len(joint_state_msg.velocity):
                 velocities[name] = joint_state_msg.velocity[index]
+            if index < len(joint_state_msg.position):
+                positions[name] = joint_state_msg.position[index]
 
         left = velocities.get("left_wheel_joint")
         right = velocities.get("right_wheel_joint")
@@ -78,8 +83,16 @@ class AttitudeEstimator:
                 alpha * raw + (1.0 - alpha) * self._wheel_velocity
             )
 
+        # 轮位置：直接用 joint_states 的累计角位置求平均（位置本身已平滑，不滤波）。
+        # 连续关节的 position 会持续累加，可当作行程里程计使用。
+        left_pos = positions.get("left_wheel_joint")
+        right_pos = positions.get("right_wheel_joint")
+        if left_pos is not None and right_pos is not None:
+            self._wheel_position = 0.5 * (left_pos + right_pos)
+
         if self._latest_state is not None:
             self._latest_state.wheel_velocity = self._wheel_velocity
+            self._latest_state.wheel_position = self._wheel_position
 
     def latest_state(self):
         return self._latest_state

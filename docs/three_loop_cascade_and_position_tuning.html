@@ -306,6 +306,28 @@ ros2 topic pub --rate 20 /cmd_vel geometry_msgs/msg/Twist \
         <pre><code># 看 x(13) 与 x_target(14) 是否收敛，velocity_setpoint(15) 停车回位时短暂非零
 ros2 topic echo /balance_controller/debug --field data</code></pre>
       </div>
+
+      <h4>缓坡进阶（gentle_slope.world / balance_pid_test.world）</h4>
+      <p>地形内嵌于 world 文件，由 <code>scripts/generate_dual_slope_worlds.py</code> 生成。步骤见根目录 <code>README.md</code> §5。</p>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code># 终端 1：平地起步上坡
+colcon build --packages-select balance_car_description --symlink-install
+source install/setup.bash
+ros2 launch balance_car_description gazebo.launch.py pause:=true gui:=true \
+  controller_type:=effort \
+  world:=$(ros2 pkg prefix balance_car_description)/share/balance_car_description/worlds/gentle_slope.world \
+  spawn_x:=-4.5 spawn_z:=0.034
+
+# 终端 2：控制（与平地相同）
+ros2 launch balance_car_control balance_controller.launch.py enabled:=true use_sim_time:=false
+
+# 终端 3：unpause 后小速度上坡，到顶停发 cmd_vel 看是否溜坡
+ros2 service call /unpause_physics std_srvs/srv/Empty {}
+ros2 topic pub --rate 20 /cmd_vel geometry_msgs/msg/Twist \
+  "{linear: {x: 0.08, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"</code></pre>
+      </div>
+      <p>岭台直接站立：<code>spawn_x:=-0.5 spawn_z:=0.209</code>（5°）；验收时看 <code>pitch</code> 稳态偏置、<code>wheel_v</code> 是否持续非零（溜坡）。</p>
     </section>
 
     <!-- 9 -->

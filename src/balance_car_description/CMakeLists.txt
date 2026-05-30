@@ -7,6 +7,16 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
+add_custom_target(
+  generate_dual_slope_worlds ALL
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_dual_slope_worlds.py
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_dual_slope_worlds.py
+  COMMENT "Generating gentle_slope.world and balance_pid_test.world"
+)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)

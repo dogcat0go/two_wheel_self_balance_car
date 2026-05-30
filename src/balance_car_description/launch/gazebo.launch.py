@@ -37,6 +37,10 @@ def generate_launch_description():
     use_rviz = LaunchConfiguration("use_rviz", default="true")
     world = LaunchConfiguration("world", default=world_file)
     pause = LaunchConfiguration("pause", default="false")
+    spawn_x = LaunchConfiguration("spawn_x", default="0.0")
+    spawn_y = LaunchConfiguration("spawn_y", default="0.0")
+    spawn_z = LaunchConfiguration("spawn_z", default="0.034")
+    spawn_yaw = LaunchConfiguration("spawn_yaw", default="0.0")
     # 跑 headless（关掉 gzclient）能省 30-50% CPU，调参时强烈推荐。
     # 需要看车体姿态时再 gui:=true。
     gui = LaunchConfiguration("gui", default="true")
@@ -81,7 +85,10 @@ def generate_launch_description():
         arguments=[
             "-file", spawn_urdf,
             "-entity", "two_wheel_balance_65mm",
-            "-x", "0.0", "-y", "0.0", "-z", "0.034",
+            "-x", spawn_x,
+            "-y", spawn_y,
+            "-z", spawn_z,
+            "-Y", spawn_yaw,
         ],
         output="screen",
     )
@@ -145,6 +152,18 @@ def generate_launch_description():
             default_value="effort",
             description="Which wheel controller to spawn: 'effort' or 'velocity'.",
         ),
+        DeclareLaunchArgument(
+            "spawn_x",
+            default_value="0.0",
+            description="Spawn X [m]. gentle_slope / balance_pid_test 上坡前: -4.5；岭台: -0.5。",
+        ),
+        DeclareLaunchArgument("spawn_y", default_value="0.0"),
+        DeclareLaunchArgument(
+            "spawn_z",
+            default_value="0.034",
+            description="Spawn Z [m] 轮心。上坡前 0.034；岭台 gentle 0.209 / pid 0.315。",
+        ),
+        DeclareLaunchArgument("spawn_yaw", default_value="0.0"),
         gazebo,
         robot_state_pub,
         spawn_entity,

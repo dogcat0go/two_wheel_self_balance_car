@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LQR 推导：物理原理 · 拉格朗日 · 牛顿–欧拉</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #667085;
+      --line: #d8dee9;
+      --blue: #2563eb;
+      --green: #0f766e;
+      --orange: #b45309;
+      --code-bg: #111827;
+      --code-ink: #e5e7eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.65;
+    }
+    header {
+      background: linear-gradient(135deg, #111827, #0f766e);
+      color: white;
+      padding: 46px 24px;
+    }
+    header .wrap, main { max-width: 1160px; margin: 0 auto; }
+    h1 { margin: 0 0 12px; font-size: clamp(28px, 4vw, 40px); }
+    header p { max-width: 920px; margin: 0; color: #ccfbf1; font-size: 17px; }
+    main { padding: 28px 20px 56px; }
+    section, nav {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 28px rgb(15 23 42 / 6%);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    h2 { margin: 0 0 16px; font-size: 22px; color: var(--blue); }
+    h3 { margin: 24px 0 10px; font-size: 18px; color: var(--green); }
+    p, li { color: var(--ink); }
+    .muted { color: var(--muted); }
+    .note {
+      border-left: 4px solid var(--orange);
+      background: #fffbeb;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin: 16px 0;
+    }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 15px; }
+    th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; }
+    th { background: #f1f5f9; }
+    .eq {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin: 12px 0;
+      overflow-x: auto;
+      font-family: "Cambria Math", "Times New Roman", serif;
+      font-size: 17px;
+    }
+    .code-block { position: relative; margin: 14px 0; }
+    .code-block pre {
+      margin: 0;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      border-radius: 12px;
+      padding: 16px 18px;
+      overflow-x: auto;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .copy-button {
+      position: absolute; top: 8px; right: 8px;
+      border: 1px solid #374151; background: #1f2937; color: #e5e7eb;
+      border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+    }
+    .copy-button:hover { background: #374151; }
+    nav ul { margin: 0; padding-left: 20px; }
+    nav a { color: var(--blue); text-decoration: none; }
+    nav a:hover { text-decoration: underline; }
+    svg text { font-family: inherit; font-size: 13px; fill: var(--ink); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>LQR 状态空间 A、B 矩阵推导</h1>
+      <p>两轮自平衡小车 · 从高中守恒定律到拉格朗日逐步推导 · 牛顿–欧拉对照 · 对应 <code>compute_lqr_gains.py</code></p>
+    </div>
+  </header>
+
+  <main>
+    <nav>
+      <h2>目录</h2>
+      <ul>
+        <li><a href="#question">1. 要不要单独加车轮质量？</a></li>
+        <li><a href="#model">2. 建模假设与坐标系</a></li>
+        <li><a href="#physics">3. 高中物理 → 拉格朗日的底层原理</a></li>
+        <li><a href="#newton">4. 牛顿–欧拉方程（矢量法）</a></li>
+        <li><a href="#lagrange">5. 拉格朗日法逐步推导</a></li>
+        <li><a href="#linear">6. 小角度线性化与 2×2 质量矩阵</a></li>
+        <li><a href="#ab">7. 状态空间 A、B</a></li>
+        <li><a href="#lqr">8. LQR：Riccati 与 K</a></li>
+        <li><a href="#urdf">9. URDF 参数映射</a></li>
+        <li><a href="#script">10. 脚本用法</a></li>
+      </ul>
+    </nav>
+
+    <section id="question">
+      <h2>1. 要不要单独加车轮质量？</h2>
+      <p><strong>不算复杂，但分两层理解：</strong></p>
+      <table>
+        <thead>
+          <tr><th>处理方式</th><th>含义</th><th>复杂度</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>车轮质量并入总质量 <em>M</em></td>
+            <td>轮心在轮轴上（<em>z=0</em>），只增加平移质量</td>
+            <td>低</td>
+          </tr>
+          <tr>
+            <td>车轮<strong>滚转转动惯量</strong> <em>J</em></td>
+            <td>轮子自转带来额外动能 → 等效增加 <em>J/r²</em> 到 <em>x</em> 方向惯性</td>
+            <td>中（多一项，不耦合 pitch）</td>
+          </tr>
+          <tr>
+            <td>每个零件单独 6-DOF</td>
+            <td>大角度、悬架、打滑等</td>
+            <td>高（本课程不需要）</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">
+        <strong>结论：</strong>把轮子质量算进 <em>M</em>，再额外加滚转惯量项 <em>J/r²</em>，是工业界常用的<strong>平面 2-DOF 模型</strong>。
+        脚本默认 <code>--include-wheel-spin</code>；初学可 <code>--no-include-wheel-spin</code> 对比差异（对本车 <em>J</em> 很小，影响约 7% 有效质量）。
+      </div>
+    </section>
+
+    <section id="model">
+      <h2>2. 建模假设与坐标系</h2>
+      <p>与 URDF 一致：<strong>x 前、y 左、z 上</strong>；<code>base_link</code> 原点在轮轴中点。</p>
+      <ul>
+        <li>广义坐标 <strong>q = [θ, x]<sup>T</sup></strong>：θ 为 pitch（前倾为正），<em>x</em> 为轮轴水平位移 [m]</li>
+        <li>小角度：sin θ ≈ θ，cos θ ≈ 1</li>
+        <li>无打滑：轮地接触力 <em>F = τ/r</em>（τ 为单轮力矩 [N·m]）</li>
+        <li>左右轮同力矩，只分析纵向平衡（偏航由 <code>yaw_loop</code> 单独处理）</li>
+        <li>控制输入 <strong>u = τ</strong>，与现有 <code>wheel_effort_controller</code> 一致</li>
+      </ul>
+      <p>LQR 状态（与 <code>balance_lqr.py</code> 对齐）：</p>
+      <div class="eq">x<sub>state</sub> = [ θ, θ̇, x, ẋ ]<sup>T</sup></div>
+      <p class="muted">代码里 <code>wheel_position</code> 是轮角 [rad]，代入 LQR 时需 <strong>x = r · wheel_position</strong> [m]，或相应调整 Q 矩阵单位。</p>
+    </section>
+
+    <section id="physics">
+      <h2>3. 高中物理 → 拉格朗日的底层原理</h2>
+      <p>拉格朗日力学不是凭空来的，它把你在高中学过的<strong>守恒与功–能关系</strong>推广到「多个耦合坐标」的系统。自平衡小车恰好是一个 2 自由度、有重力势能、又有电机注入能量的典型例子。</p>
+
+      <h3>3.1 动量守恒（牛顿第二定律的积分形式）</h3>
+      <p>质点：动量 <strong>p = m v</strong>，合力等于动量变化率：</p>
+      <div class="eq">F = dp/dt = m a &nbsp;&nbsp;（质量不变时）</div>
+      <p>孤立系统合外力为零 → <strong>总动量守恒</strong>。自平衡车<strong>不是</strong>孤立系统：地面给轮子摩擦力、电机给力矩，所以车体动量和轮子动量都在变——这正是控制要管理的对象。</p>
+      <p class="muted">牛顿–欧拉法（§4）直接对每个部件写 F=ma、τ=Iα；拉格朗日法（§5）则先写能量，再一次性得到耦合方程。</p>
+
+      <h3>3.2 功与动能定理（能量方法的起点）</h3>
+      <p>合力对位移做的功等于动能变化：</p>
+      <div class="eq">W<sub>net</sub> = ΔK</div>
+      <p>电机力矩 τ 在角位移 dφ 上作功 dW = τ dφ，通过轮地接触转化为车体的平动与倾倒动能。因此平衡控制本质上是在<strong>持续注入或吸收机械能</strong>，把不稳定平衡点「钉」在竖直附近。</p>
+
+      <h3>3.3 机械能守恒（何时成立、何时不成立）</h3>
+      <p>只有保守力（如重力）做功、且没有摩擦/电机等非保守力时：</p>
+      <div class="eq">E = K + V = 常数 &nbsp;&nbsp;（机械能守恒）</div>
+      <p>倒立摆竖直平衡是<strong>势能极大、动能可为零</strong>的不稳定平衡点：微扰后重力矩使它倒下，机械能会在 K、V 之间交换但<strong>不会自动守恒为定值</strong>——除非没有摩擦且你不控制。加入 LQR/PD 后，电机相当于非保守力源，持续修正能量分配。</p>
+      <div class="note">
+        <strong>与控制的联系：</strong>开环不稳定（特征值在虚轴上）意味着「只靠守恒律无法停在竖直」；闭环控制通过 τ 打破自由演化，相当于实时调节 ΔK 与 ΔV。
+      </div>
+
+      <h3>3.4 从能量标量到拉格朗日量 L = T − V</h3>
+      <p>对保守部分，引入：</p>
+      <ul>
+        <li><strong>T(q, q̇)</strong>：动能，依赖广义坐标 q 及其变化率</li>
+        <li><strong>V(q)</strong>：势能，只依赖位形（重力 → 与 θ 有关）</li>
+        <li><strong>L = T − V</strong>：拉格朗日量</li>
+      </ul>
+      <p>欧拉–拉格朗日方程（非保守力用广义力 Q 表示）：</p>
+      <div class="eq">d/dt ( ∂L/∂q̇<sub>i</sub> ) − ∂L/∂q<sub>i</sub> = Q<sub>i</sub></div>
+      <p>当 Q=0 且 T、V 不显含 t 时，可推出 Noether 意义下的守恒量（如循环坐标对应动量守恒）。自平衡车有电机 → <strong>Q ≠ 0</strong>，但方程结构仍由 T、V 决定，这是拉格朗日法比「逐个画受力图」更系统的原因。</p>
+
+      <h3>3.5 为何自平衡车适合用拉格朗日？</h3>
+      <table>
+        <thead>
+          <tr><th>高中/牛顿思路</th><th>拉格朗日思路</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>对车体、轮子分别画力、列矩</td><td>选 q=[θ,x]，写 T、V，两步 E-L 方程</td></tr>
+          <tr><td>约束（无打滑 ẋ=rφ̇）需单独处理</td><td>选 x 为坐标，滚转动能 ½J(ẋ/r)² 自然进入 T</td></tr>
+          <tr><td>耦合项 M l θ̈ 容易漏</td><td>交叉项来自 T 中 ẋ·θ̇，自动出现在 M<sub>mat</sub> 非对角元</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="newton">
+      <h2>4. 牛顿–欧拉方程（矢量法）</h2>
+
+      <h3>4.1 受力分析（pitch 方向）</h3>
+      <p>绕轮轴（y 轴）对<strong>整机</strong>取矩。质心在轴上方高度 <em>l</em>，重力 <em>Mg</em> 产生恢复力矩（小角度）：</p>
+      <div class="eq">τ<sub>g</sub> ≈ −M g l · θ</div>
+      <p>电机对车体反力矩（轮对车）：<strong>−τ</strong>（与关节力矩方向相反）。</p>
+      <div class="eq">I<sub>axle</sub> θ̈ + M l ẍ = −M g l · θ − τ</div>
+      <p>其中 <em>I<sub>axle</sub></em> 为绕轮轴的 pitch 转动惯量，<em>M l ẍ</em> 为质心水平加速度的耦合项（拉格朗日推导见 §5.4）。</p>
+
+      <h3>4.2 受力分析（水平方向）</h3>
+      <p>地面对轮的水平力 <em>F = τ/r</em> 推动整机等效质量加速。考虑轮子滚转动能后，<em>x</em> 方向等效质量增大：</p>
+      <div class="eq">M l θ̈ + ( M + J/r² ) ẍ = τ / r</div>
+      <p><em>J</em> = 两轮绕滚转轴转动惯量之和。对本 URDF 实心圆柱：<em>J = 2 × ½ m<sub>w</sub> r² = m<sub>w</sub> r²</em>（单轮质量 <em>m<sub>w</sub></em>）。</p>
+      <div class="note">§4 与 §5 结论相同：同一物理，两种列式。建议先读 §5 理解能量从哪来，再用 §4 对照受力直觉。</div>
+    </section>
+
+    <section id="lagrange">
+      <h2>5. 拉格朗日法逐步推导</h2>
+      <p>广义坐标 <strong>q = [θ, x]<sup>T</sup></strong>（与 §2 一致）。以下逐步展开，不跳步。</p>
+
+      <h3>5.1 写出各部件速度（小角度）</h3>
+      <p>质心水平速度（相对地面）：</p>
+      <div class="eq">v<sub>com,x</sub> ≈ ẋ + l θ̇</div>
+      <p>轮心水平速度为 ẋ；轮子角速度（无打滑）ω = ẋ/r。</p>
+
+      <h3>5.2 动能 T —— 展开与合并</h3>
+      <p><strong>① 整机质心平动</strong>（质量 M，质心水平速度 v<sub>com,x</sub> ≈ ẋ + l θ̇）：</p>
+      <div class="eq">T<sub>trans</sub> = ½ M (ẋ + l θ̇)² = ½ M ẋ² + M l θ̇ ẋ + ½ M l² θ̇²</div>
+      <p><strong>② 绕轮轴 y 的刚体转动</strong>（电池、主板等相对质心的转动，合成 I<sub>axle</sub>，由 URDF 平行轴定理累加）：</p>
+      <div class="eq">T<sub>body,rot</sub> = ½ I<sub>axle</sub> θ̇²</div>
+      <p><strong>③ 两轮滚转</strong>（ω = ẋ/r，两轮转动惯量之和 J）：</p>
+      <div class="eq">T<sub>wheel</sub> = ½ J (ẋ/r)²</div>
+      <p>三项相加，按 θ̇²、θ̇ẋ、ẋ² 归类系数，得到 2×2 质量矩阵：</p>
+      <div class="eq">T = ½ [ θ̇, ẋ ] M<sub>mat</sub> [ θ̇, ẋ ]<sup>T</sup></div>
+      <div class="eq">
+        M<sub>mat</sub> = [ M l² + I<sub>axle</sub> &nbsp;&nbsp; M l ; &nbsp; M l &nbsp;&nbsp; M + J/r² ]
+      </div>
+      <p>其中 <strong>M l θ̇ ẋ</strong> 交叉项来自 T<sub>trans</sub> 展开——车体倾倒会改变质心水平速度，这是 pitch 与 x 耦合的物理根源。<strong>J/r²</strong> 项说明：轮子越「重」或惯量越大，同样 ẋ 下储存的滚转动能越多，等效于 x 方向更难加速。</p>
+
+      <h3>5.3 势能 V —— 重力</h3>
+      <p>小角度下质心竖直抬升 Δz ≈ l(1 − cos θ) ≈ ½ l θ² 可等价写成：</p>
+      <div class="eq">V = M g l (1 − cos θ) ≈ ½ M g l θ²</div>
+      <p>常数项 ½Mgl·0 略去，只保留与 θ 有关部分。x 不出现在 V 中（水平面无势能梯度）。</p>
+
+      <h3>5.4 拉格朗日量 L 与广义力</h3>
+      <div class="eq">L = T − V = ½ [θ̇, ẋ] M<sub>mat</sub> [θ̇, ẋ]<sup>T</sup> − ½ M g l θ²</div>
+      <p>电机力矩 τ：对车体俯仰的广义力 <em>Q<sub>θ</sub> = −τ</em>（轮对车的反力矩）；对水平坐标 x，地面摩擦力 <em>F = τ/r</em> → <em>Q<sub>x</sub> = τ/r</em>。</p>
+
+      <h3>5.5 对 θ 用欧拉–拉格朗日方程</h3>
+      <p>先求偏导：</p>
+      <div class="eq">∂L/∂θ̇ = M<sub>mat,11</sub> θ̇ + M<sub>mat,12</sub> ẋ = (M l² + I<sub>axle</sub>) θ̇ + M l ẋ</div>
+      <div class="eq">d/dt(∂L/∂θ̇) = (M l² + I<sub>axle</sub>) θ̈ + M l ẍ</div>
+      <div class="eq">∂L/∂θ = −M g l θ</div>
+      <p>代入 E-L：</p>
+      <div class="eq">(M l² + I<sub>axle</sub>) θ̈ + M l ẍ + M g l θ = Q<sub>θ</sub> = −τ</div>
+      <p>移项即 §4.1 的 pitch 方程。</p>
+
+      <h3>5.6 对 x 用欧拉–拉格朗日方程</h3>
+      <div class="eq">∂L/∂ẋ = M<sub>mat,21</sub> θ̇ + M<sub>mat,22</sub> ẋ = M l θ̇ + (M + J/r²) ẋ</div>
+      <div class="eq">d/dt(∂L/∂ẋ) = M l θ̈ + (M + J/r²) ẍ</div>
+      <div class="eq">∂L/∂x = 0</div>
+      <p>代入 E-L：</p>
+      <div class="eq">M l θ̈ + (M + J/r²) ẍ = Q<sub>x</sub> = τ/r</div>
+      <p>即 §4.2 的水平方程。<strong>两条 E-L 方程与牛顿–欧拉完全一致。</strong></p>
+
+      <h3>5.7 写成矩阵并解加速度</h3>
+      <div class="eq">M<sub>mat</sub> [ θ̈ ; ẍ ] = [ −M g l θ − τ ; τ/r ]</div>
+      <p>令 a<sub>ij</sub> = M<sub>mat,ij</sub>，det = a<sub>11</sub>a<sub>22</sub> − a<sub>12</sub>a<sub>21</sub>，用克莱默法则或矩阵求逆得 θ̈、ẍ —— 结果即 §6 的 c<sub>ij</sub> 与 A、B 矩阵。</p>
+    </section>
+
+    <section id="linear">
+      <h2>6. 小角度线性化与 2×2 质量矩阵</h2>
+      <p>写成矩阵形式：</p>
+      <div class="eq">
+        [ a<sub>11</sub> &nbsp; a<sub>12</sub> ] [ θ̈ ] = [ −M g l · θ − τ ]<br>
+        [ a<sub>21</sub> &nbsp; a<sub>22</sub> ] [ ẍ ] &nbsp;&nbsp; [ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; τ/r &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ]
+      </div>
+      <p>其中：</p>
+      <div class="eq">
+        a<sub>11</sub> = M l² + I<sub>axle</sub>, &nbsp; a<sub>12</sub> = a<sub>21</sub> = M l, &nbsp; a<sub>22</sub> = M + J/r²
+      </div>
+      <p>令 det = a<sub>11</sub>a<sub>22</sub> − (M l)²，解加速度：</p>
+      <div class="eq">
+        θ̈ = c<sub>11</sub> θ + c<sub>12</sub> τ, &nbsp;&nbsp; ẍ = c<sub>21</sub> θ + c<sub>22</sub> τ
+      </div>
+      <div class="eq">
+        c<sub>11</sub> = −a<sub>22</sub> M g l / det<br>
+        c<sub>12</sub> = (−a<sub>22</sub> − a<sub>12</sub>/r) / det<br>
+        c<sub>21</sub> = a<sub>21</sub> M g l / det<br>
+        c<sub>22</sub> = (a<sub>21</sub> + a<sub>11</sub>/r) / det
+      </div>
+      <p>开环 pitch 模态应不稳定（特征值纯虚数 ±jω），本车算例 ω ≈ 11.7 rad/s。</p>
+    </section>
+
+    <section id="ab">
+      <h2>7. 状态空间 A、B</h2>
+      <p>由 ẋ<sub>state</sub> = A x<sub>state</sub> + B u，u = τ：</p>
+      <div class="eq">
+        A = [ 0 &nbsp; 1 &nbsp; 0 &nbsp; 0 ; &nbsp; c<sub>11</sub> &nbsp; 0 &nbsp; 0 &nbsp; 0 ; &nbsp; 0 &nbsp; 0 &nbsp; 0 &nbsp; 1 ; &nbsp; c<sub>21</sub> &nbsp; 0 &nbsp; 0 &nbsp; 0 ],
+        &nbsp;&nbsp;
+        B = [ 0 ; c<sub>12</sub> ; 0 ; c<sub>22</sub> ]
+      </div>
+      <p>这是<strong>4 阶、单输入</strong>模型：pitch 不稳定模态 + 平移积分链。LQR 一次算出平衡 + 位置/速度跟踪增益（方案 B）。</p>
+    </section>
+
+    <section id="lqr">
+      <h2>8. LQR：Riccati 与 K</h2>
+      <h3>8.1 离散化（控制周期 200 Hz → dt = 0.005 s）</h3>
+      <div class="eq">x<sub>k+1</sub> = A<sub>d</sub> x<sub>k</sub> + B<sub>d</sub> u<sub>k</sub></div>
+      <p>有 scipy 时用零阶保持（ZOH）；否则脚本用一阶欧拉近似。</p>
+
+      <h3>8.2 离散代数 Riccati 方程（DARE）</h3>
+      <div class="eq">P = Q + A<sub>d</sub><sup>T</sup> P A<sub>d</sub> − A<sub>d</sub><sup>T</sup> P B<sub>d</sub> ( R + B<sub>d</sub><sup>T</sup> P B<sub>d</sub> )<sup>−1</sup> B<sub>d</sub><sup>T</sup> P A<sub>d</sub></div>
+      <p><strong>P</strong> 为中间量；实际控制增益：</p>
+      <div class="eq">K = ( R + B<sub>d</sub><sup>T</sup> P B<sub>d</sub> )<sup>−1</sup> B<sub>d</sub><sup>T</sup> P A<sub>d</sub></div>
+
+      <h3>8.3 参考跟踪</h3>
+      <div class="eq">τ = −K ( x<sub>state</sub> − x<sub>ref</sub> )</div>
+      <p>符号若与 Gazebo/URDF 相反，用 yaml 中 <code>lqr_output_sign: -1.0</code> 翻转，不要硬改 K 的符号。</p>
+    </section>
+
+    <section id="urdf">
+      <h2>9. URDF 参数映射（two_wheel_balance_65mm）</h2>
+      <table>
+        <thead>
+          <tr><th>模型符号</th><th>URDF / 合成</th><th>本车数值（约）</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>M</td><td>body + battery + board + imu + 2×motor + 2×wheel</td><td>0.756 kg</td></tr>
+          <tr><td>l</td><td>质量加权质心高度（相对轮轴）</td><td>0.031 m</td></tr>
+          <tr><td>I<sub>axle</sub></td><td>body 盒体 + 各零件平行轴</td><td>0.00161 kg·m²</td></tr>
+          <tr><td>r</td><td>wheel_radius</td><td>0.0325 m</td></tr>
+          <tr><td>J</td><td>2 × (½ m<sub>w</sub> r²)</td><td>5.8×10⁻⁵ kg·m²</td></tr>
+          <tr><td>M + J/r²</td><td>x 方向等效质量</td><td>0.811 kg</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="script">
+      <h2>10. 脚本用法（方式 B：调参 / 运行分离）</h2>
+      <table>
+        <thead>
+          <tr><th>文件</th><th>用途</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>config/balance_lqr_tuning.yaml</code></td><td>Q、R、dt、模型选项（调参改这个）</td></tr>
+          <tr><td><code>config/balance_lqr.yaml</code></td><td>运行时 K + ROS 节点参数（脚本写回 k_*）</td></tr>
+          <tr><td>URDF xacro</td><td>A、B 隐式来源，脚本内计算，不落盘</td></tr>
+        </tbody>
+      </table>
+      <p>路径：<code>src/balance_car_control/scripts/compute_lqr_gains.py</code></p>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>cd src/balance_car_control/scripts
+# 读取 balance_lqr_tuning.yaml，打印 A/B/K
+python3 compute_lqr_gains.py
+
+# 改 Q/R 后写回 balance_lqr.yaml 的 k_theta ...
+python3 compute_lqr_gains.py --write-yaml
+
+# 临时覆盖 tuning 文件里的某个权重
+python3 compute_lqr_gains.py --q-theta 500 --r-tau 0.08 --write-yaml</code></pre>
+      </div>
+      <p>默认 Q、R 见 <code>balance_lqr_tuning.yaml</code>；<code>--write-yaml</code> 只更新 <code>balance_lqr.yaml</code> 中的 K。</p>
+      <div class="note">
+        <strong>调参顺序：</strong>先保证 A、B 符号在 Gazebo 正确 → 再调 Q/R → 最后微调 <code>max_wheel_effort</code> 与 <code>lqr_output_sign</code>。
+      </div>
+    </section>
+  </main>
+
+  <script>
+    document.querySelectorAll(".code-block").forEach(function (block) {
+      var button = block.querySelector(".copy-button");
+      var code = block.querySelector("pre code");
+      if (!button || !code) return;
+      button.addEventListener("click", function () {
+        navigator.clipboard.writeText(code.textContent).then(function () {
+          button.textContent = "已复制";
+          setTimeout(function () { button.textContent = "复制"; }, 1500);
+        });
+      });
+    });
+  </script>
+</body>
+</html>

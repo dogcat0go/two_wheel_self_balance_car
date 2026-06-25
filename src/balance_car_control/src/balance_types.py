@@ -45,6 +45,16 @@ class WheelCommand:
 
 
 @dataclass
+class LQRReference:
+    """LQR 参考状态 x_ref = [θ_ref, θ̇_ref, x_ref, ẋ_ref]。"""
+
+    theta_ref: float = 0.0
+    theta_dot_ref: float = 0.0
+    x_ref: float = 0.0
+    x_dot_ref: float = 0.0
+
+
+@dataclass
 class BalanceDebug:
     pitch: float
     pitch_rate: float

@@ -10,10 +10,52 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, TimerAction
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, TimerAction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
+
+
+def _resolve_config_path(context):
+    mode = LaunchConfiguration("control_mode").perform(context)
+    pkg_dir = get_package_share_directory("balance_car_control")
+    if mode == "lqr":
+        return os.path.join(pkg_dir, "config", "balance_lqr.yaml")
+    return os.path.join(pkg_dir, "config", "balance_controller.yaml")
+
+
+def launch_setup(context, *args, **kwargs):
+    config_override = LaunchConfiguration("config_file").perform(context)
+    if config_override:
+        config_path = config_override
+    else:
+        config_path = _resolve_config_path(context)
+
+    use_sim_time = LaunchConfiguration("use_sim_time")
+    enabled = LaunchConfiguration("enabled")
+    control_mode = LaunchConfiguration("control_mode")
+
+    balance_controller = Node(
+        package="balance_car_control",
+        executable="balance_controller_node",
+        name="balance_controller_node",
+        output="screen",
+        parameters=[
+            config_path,
+            {
+                "use_sim_time": ParameterValue(use_sim_time, value_type=bool),
+                "enabled": ParameterValue(enabled, value_type=bool),
+                "control_mode": ParameterValue(control_mode, value_type=str),
+            },
+        ],
+    )
+
+    return [
+        TimerAction(
+            period=3.0,
+            actions=[balance_controller],
+        )
+    ]
 
 
 def generate_launch_description():
@@ -24,33 +66,17 @@ def generate_launch_description():
         "balance_controller.yaml",
     )
 
-    config_file = LaunchConfiguration("config_file")
-    use_sim_time = LaunchConfiguration("use_sim_time")
-    enabled = LaunchConfiguration("enabled")
-
-    balance_controller = Node(
-        package="balance_car_control",
-        executable="balance_controller_node",
-        name="balance_controller_node",
-        output="screen",
-        parameters=[
-            config_file,
-            {
-                # Keep this explicit so the node follows Gazebo /clock even if
-                # the YAML is copied or edited later.
-                "use_sim_time": ParameterValue(use_sim_time, value_type=bool),
-                # Default false: start in observe-only mode, then enable after
-                # IMU sign and wheel direction are confirmed.
-                "enabled": ParameterValue(enabled, value_type=bool),
-            },
-        ],
-    )
-
     return LaunchDescription([
         DeclareLaunchArgument(
+            "control_mode",
+            default_value="pid",
+            description="Balance control backend: 'pid' (cascade) or 'lqr' (full-state).",
+            choices=["pid", "lqr"],
+        ),
+        DeclareLaunchArgument(
             "config_file",
-            default_value=default_config_file,
-            description="Path to balance controller parameter YAML.",
+            default_value="",
+            description="Override config YAML path. Empty = auto-select from control_mode.",
         ),
         DeclareLaunchArgument(
             "use_sim_time",
@@ -62,10 +88,5 @@ def generate_launch_description():
             default_value="true",
             description="Whether to publish non-zero wheel commands.",
         ),
-        TimerAction(
-            # Give Gazebo, /clock, ros2_control controllers, and the IMU topic
-            # time to start before the balance loop begins subscribing/publishing.
-            period=3.0,
-            actions=[balance_controller],
-        ),
+        OpaqueFunction(function=launch_setup),
     ])

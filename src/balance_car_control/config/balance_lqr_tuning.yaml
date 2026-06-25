@@ -1,0 +1,35 @@
+# LQR 设计参数（LQR 节点启动时自动读取并计算 K）
+#
+# 调参流程：改 q_scale_* / max_* / r_scale → 重启 balance_controller（control_mode:=lqr）
+# 节点启动时会自动重算 K 并写回 balance_lqr.yaml（install + src）
+#
+# Q 对角（状态 x = [θ, θ̇, x, ẋ]）：
+#   q1 = q_scale_theta     / max_theta_rad²      → 倾角
+#   q2 = q_scale_theta_dot / max_theta_dot²      → 倾角速度（阻尼）
+#   q3 = q_scale_x         / max_x_m²            → 水平位移
+#   q4 = q_scale_x_dot     / max_x_dot_mps²      → 水平速度（抗漂移/减晃）
+#   R  = r_scale           / max_tau²
+
+lqr_design:
+  xacro_path: ""
+  include_wheel_spin: true
+  gravity: 9.81
+
+  control_rate: 200.0
+  dt: 0.0
+
+  max_theta_rad: 0.12
+  max_theta_dot: 3.0
+  max_x_m: 0.3
+  max_x_dot_mps: 0.5
+  max_tau: 0.12
+
+  pitch_linearization_rad: -0.011
+
+  q_scale_theta: 1.0
+  q_scale_theta_dot: 3.5
+  q_scale_x: 1.0
+  q_scale_x_dot: 0.25
+  r_scale: 1.5
+
+  runtime_yaml: balance_lqr.yaml

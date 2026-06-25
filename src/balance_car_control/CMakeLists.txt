@@ -45,7 +45,18 @@ install(FILES
   src/yaw_loop.py
   src/safety_limiter.py
   src/wheel_mixer.py
+  src/control_backend.py
+  src/cascade_pid_backend.py
+  src/lqr_backend.py
+  src/lqr_gain_design.py
+  src/balance_lqr.py
+  src/lqr_reference.py
   DESTINATION lib/${PROJECT_NAME}
+)
+
+install(PROGRAMS
+  scripts/compute_lqr_gains.py
+  DESTINATION share/${PROJECT_NAME}/scripts
 )
 
 install(DIRECTORY

@@ -17,6 +17,12 @@ install(PROGRAMS
   RENAME imu_debug_node
 )
 
+install(PROGRAMS
+  src/slope_dyn_obs_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME slope_dyn_obs_node
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
@@ -51,6 +57,7 @@ install(FILES
   src/lqr_gain_design.py
   src/balance_lqr.py
   src/lqr_reference.py
+  src/slope_estimator.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

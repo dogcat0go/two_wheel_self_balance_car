@@ -22,10 +22,10 @@ balance_controller_node:
     lqr_auto_compute_gains: true
     lqr_write_gains_to_yaml: true
     lqr_tuning_yaml: ""
-    k_theta: -0.93740467
-    k_theta_dot: -0.08467404
-    k_x: -0.25805751
-    k_x_dot: -0.31263406
+    k_theta: -0.89239459
+    k_theta_dot: -0.08124025
+    k_x: -0.24027916
+    k_x_dot: -0.30990905
     lqr_output_sign: 1.0
     # 实测站立平衡倾角约 -0.011 rad，对齐 PID 的 pitch_target 偏置
     lqr_pitch_bias: -0.011

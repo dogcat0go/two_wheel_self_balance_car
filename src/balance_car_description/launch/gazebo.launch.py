@@ -65,6 +65,8 @@ def generate_launch_description():
             "world": world,
             "pause": pause,
             "gui": gui,
+            # /clock 默认 10Hz，use_sim_time 下会把控制器定时器限到 10Hz
+            "params_file": os.path.join(pkg_dir, "config", "gazebo_params.yaml"),
         }.items(),
     )
 

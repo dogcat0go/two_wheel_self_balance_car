@@ -31,6 +31,9 @@ class SafetyConfig:
     max_effort_slew: float = 60.0
     fall_angle_rad: float = 0.61
     imu_timeout_sec: float = 0.05
+    # [s] 失效条件要连续持续这么久才判定为真失效；单拍抖动（IMU 偶发延迟、
+    # 仿真掉帧）滤掉，不打断控制去做硬复位；真摔倒会持续超阈值，几乎不受影响。
+    trip_debounce_sec: float = 0.1
 
 
 class SafetyLimiter:
@@ -38,14 +41,41 @@ class SafetyLimiter:
         self.config = config
         self._last_left = 0.0
         self._last_right = 0.0
+        self._invalid_since_sec = None
 
     def reset(self):
         self._last_left = 0.0
         self._last_right = 0.0
+        self._invalid_since_sec = None
 
     def is_state_valid(self, state, now_sec):
-        is_valid, _ = self.check_state(state, now_sec)
+        is_valid, _ = self.check_state_debounced(state, now_sec)
         return is_valid
+
+    def check_state_debounced(self, state, now_sec):
+        """带去抖的失效判定：原始条件要连续满足 trip_debounce_sec 才判失效。
+
+        单拍抖动（未过门槛）仍返回有效，避免安全复位被误触发；一旦真的
+        持续失效，行为与原始 check_state 一致（只是多等一小段确认时间）。
+
+        "no_state"（还没收到过状态，如启动瞬间）不去抖：没有数据就是没有
+        数据，下游拿不到 state 会直接崩，必须立即判失效。
+        """
+        if state is None:
+            self._invalid_since_sec = now_sec
+            return False, "no_state"
+
+        raw_valid, reason = self.check_state(state, now_sec)
+        if raw_valid:
+            self._invalid_since_sec = None
+            return True, "ok"
+
+        if self._invalid_since_sec is None:
+            self._invalid_since_sec = now_sec
+
+        if now_sec - self._invalid_since_sec >= self.config.trip_debounce_sec:
+            return False, reason
+        return True, reason
 
     def check_state(self, state, now_sec):
         if state is None:

@@ -36,6 +36,7 @@ class BalanceControllerNode(Node):
         self.declare_parameter("max_effort_slew", 60.0)
         self.declare_parameter("fall_angle_rad", 0.61)
         self.declare_parameter("imu_timeout_sec", 0.05)
+        self.declare_parameter("safety_trip_debounce_sec", 0.1)
         self.declare_parameter("recovery_ramp_sec", 1.0)
 
         self.declare_parameter("wheel_velocity_lpf_alpha", 1.0)
@@ -56,6 +57,9 @@ class BalanceControllerNode(Node):
         self.declare_parameter("yaw_output_sign", 1.0)
         self.declare_parameter("yaw_cmd_activate_threshold", 0.08)
         self.declare_parameter("yaw_rate_deadband", 0.05)
+        self.declare_parameter("heading_hold_enabled", True)
+        self.declare_parameter("kp_heading", 1.5)
+        self.declare_parameter("max_heading_rate", 0.5)
 
         self.enabled = bool(self.get_parameter("enabled").value)
         self.log_period_sec = float(self.get_parameter("log_period_sec").value)
@@ -70,6 +74,7 @@ class BalanceControllerNode(Node):
             max_effort_slew=float(self.get_parameter("max_effort_slew").value),
             fall_angle_rad=float(self.get_parameter("fall_angle_rad").value),
             imu_timeout_sec=float(self.get_parameter("imu_timeout_sec").value),
+            trip_debounce_sec=float(self.get_parameter("safety_trip_debounce_sec").value),
         )
         motion_config = MotionCommandConfig(
             wheel_radius=float(self.get_parameter("wheel_radius").value),
@@ -89,6 +94,11 @@ class BalanceControllerNode(Node):
                 self.get_parameter("yaw_cmd_activate_threshold").value
             ),
             yaw_rate_deadband=float(self.get_parameter("yaw_rate_deadband").value),
+            heading_hold_enabled=bool(
+                self.get_parameter("heading_hold_enabled").value
+            ),
+            kp_heading=float(self.get_parameter("kp_heading").value),
+            max_heading_rate=float(self.get_parameter("max_heading_rate").value),
         )
 
         self.estimator = AttitudeEstimator(
@@ -182,12 +192,14 @@ class BalanceControllerNode(Node):
         )
         self.get_logger().info(
             "Yaw loop: enabled={} kp_yaw={:.4f} kd_yaw={:.4f} "
-            "max_turn_tau={:.3f}Nm sign={:.0f}".format(
+            "max_turn_tau={:.3f}Nm sign={:.0f} heading_hold={} kp_heading={:.2f}".format(
                 yaw_config.enabled,
                 yaw_config.kp_yaw,
                 yaw_config.kd_yaw,
                 yaw_config.max_turn_tau,
                 yaw_config.output_sign,
+                yaw_config.heading_hold_enabled,
+                yaw_config.kp_heading,
             )
         )
         self.balance_backend.log_config(self.get_logger())
@@ -338,7 +350,7 @@ class BalanceControllerNode(Node):
         now_sec = self.now_sec()
 
         state = self.estimator.latest_state()
-        state_valid, invalid_reason = self.safety.check_state(state, now_sec)
+        state_valid, invalid_reason = self.safety.check_state_debounced(state, now_sec)
         if not state_valid:
             self.maybe_log_invalid_state(invalid_reason)
             if not self._safety_invalid:
@@ -376,6 +388,7 @@ class BalanceControllerNode(Node):
             target_yaw_rate=target_yaw_rate,
             yaw_rate=state.yaw_rate,
             dt=dt,
+            yaw=state.yaw,
         )
         mixed_command = self.wheel_mixer.mix(control_output.balance_tau, turn_tau)
         safe_command = self.safety.limit_command(mixed_command, dt)

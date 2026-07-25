@@ -1,19 +1,27 @@
 #!/usr/bin/env python3
-"""偏航（方向）环：把 target_yaw_rate 变成差动力矩 turn_tau。
+"""偏航（方向）环：把 target_yaw_rate / 航向保持 变成差动力矩 turn_tau。
 
 与平衡环的关系：
     - 平衡环输出 balance_tau（两轮同向，保 pitch）
     - 偏航环输出 turn_tau（左右反向，改 heading）
     - WheelMixer: left = balance - turn, right = balance + turn
 
-当前实现：Yaw 角速度 PD（框架版，后续可换为串级位置环）。
+结构：
+    - 有转向指令：Yaw 角速度 PD（跟踪 cmd_vel.angular.z）
+    - 无转向指令：锁定进入直行瞬间的 yaw，外环航向 → 内环角速度 PD
 """
 
+import math
 from dataclasses import dataclass
 
 
 def clamp(value, lower, upper):
     return max(lower, min(upper, value))
+
+
+def wrap_pi(angle: float) -> float:
+    """把角度折到 (-π, π]。"""
+    return math.atan2(math.sin(angle), math.cos(angle))
 
 
 @dataclass
@@ -25,9 +33,11 @@ class YawLoopConfig:
     max_turn_tau [N·m]    —— 差动力矩饱和，应小于 max_wheel_effort
     output_sign ±1.0      —— 符号与 URDF/IMU 约定不一致时翻转
     enabled               —— False 时 turn_tau 恒为 0
-    yaw_cmd_activate_threshold [rad/s] —— |target_yaw_rate| 低于此值时不输出 turn_tau
-        （站立/只调平衡时必须关断，否则 IMU 零偏会被当成“要转向”）
+    yaw_cmd_activate_threshold [rad/s] —— |target_yaw_rate| 低于此值视为直行
     yaw_rate_deadband [rad/s] —— 测量角速度死区，抑制陀螺噪声
+    heading_hold_enabled  —— 直行时锁定航向角，抑制长时漂移
+    kp_heading [1/s]      —— 航向外环：yaw 误差 → 期望 yaw_rate
+    max_heading_rate [rad/s] —— 航向外环输出的角速度指令限幅
     """
 
     kp_yaw: float = 0.02
@@ -37,6 +47,9 @@ class YawLoopConfig:
     enabled: bool = True
     yaw_cmd_activate_threshold: float = 0.08
     yaw_rate_deadband: float = 0.05
+    heading_hold_enabled: bool = True
+    kp_heading: float = 1.5
+    max_heading_rate: float = 0.5
 
 
 class YawLoop:
@@ -45,39 +58,30 @@ class YawLoop:
         self.last_turn_tau = 0.0
         self._last_yaw_rate = 0.0
         self._last_yaw_rate_initialized = False
+        self._yaw_ref = None
 
     def reset(self):
         self.last_turn_tau = 0.0
         self._last_yaw_rate = 0.0
         self._last_yaw_rate_initialized = False
+        self._yaw_ref = None
 
-    def compute(
+    def _apply_rate_deadband(self, yaw_rate: float) -> float:
+        deadband = abs(self.config.yaw_rate_deadband)
+        if abs(yaw_rate) <= deadband:
+            return 0.0
+        if yaw_rate > 0.0:
+            return yaw_rate - deadband
+        return yaw_rate + deadband
+
+    def _rate_to_turn_tau(
         self,
         target_yaw_rate: float,
         yaw_rate: float,
         dt: float,
     ) -> float:
         cfg = self.config
-        if not cfg.enabled or dt <= 0.0:
-            self.last_turn_tau = 0.0
-            return 0.0
-
-        # 无转向指令时完全关闭差动力矩，避免破坏左右对称平衡。
-        if abs(target_yaw_rate) < cfg.yaw_cmd_activate_threshold:
-            self.last_turn_tau = 0.0
-            self._last_yaw_rate = yaw_rate
-            self._last_yaw_rate_initialized = True
-            return 0.0
-
-        measured_rate = yaw_rate
-        deadband = abs(cfg.yaw_rate_deadband)
-        if abs(measured_rate) <= deadband:
-            measured_rate = 0.0
-        elif measured_rate > 0.0:
-            measured_rate -= deadband
-        else:
-            measured_rate += deadband
-
+        measured_rate = self._apply_rate_deadband(yaw_rate)
         rate_error = target_yaw_rate - measured_rate
 
         d_yaw_rate = 0.0
@@ -91,3 +95,40 @@ class YawLoop:
         turn_tau = clamp(cfg.output_sign * raw_turn, -limit, limit)
         self.last_turn_tau = turn_tau
         return turn_tau
+
+    def compute(
+        self,
+        target_yaw_rate: float,
+        yaw_rate: float,
+        dt: float,
+        yaw: float = 0.0,
+    ) -> float:
+        cfg = self.config
+        if not cfg.enabled or dt <= 0.0:
+            self.last_turn_tau = 0.0
+            self._yaw_ref = None
+            return 0.0
+
+        turning = abs(target_yaw_rate) >= cfg.yaw_cmd_activate_threshold
+        if turning:
+            # 主动转向：松开航向锁，跟踪角速度指令
+            self._yaw_ref = None
+            return self._rate_to_turn_tau(target_yaw_rate, yaw_rate, dt)
+
+        if not cfg.heading_hold_enabled:
+            self.last_turn_tau = 0.0
+            self._yaw_ref = None
+            self._last_yaw_rate = yaw_rate
+            self._last_yaw_rate_initialized = True
+            return 0.0
+
+        # 直行：进入瞬间锁定当前 yaw，外环生成期望角速度再走内环
+        if self._yaw_ref is None:
+            self._yaw_ref = yaw
+        yaw_error = wrap_pi(self._yaw_ref - yaw)
+        rate_cmd = clamp(
+            cfg.kp_heading * yaw_error,
+            -abs(cfg.max_heading_rate),
+            abs(cfg.max_heading_rate),
+        )
+        return self._rate_to_turn_tau(rate_cmd, yaw_rate, dt)

@@ -1,0 +1,5 @@
+# gazebo_ros_init 默认只以 10Hz 发布 /clock，use_sim_time 下所有 ROS 定时器
+# 都被限到 10Hz（控制器 200Hz 失效）。提到 1000Hz 与物理步长(1ms)一致。
+gazebo:
+  ros__parameters:
+    publish_rate: 1000.0

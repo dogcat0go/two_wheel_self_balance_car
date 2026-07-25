@@ -11,10 +11,11 @@ balance_controller_node:
     control_rate: 200.0
     log_period_sec: 0.5
 
-    max_wheel_effort: 0.12
+    max_wheel_effort: 0.5
     max_effort_slew: 80.0
     fall_angle_rad: 0.5
     imu_timeout_sec: 1.0
+    safety_trip_debounce_sec: 0.1  # [s] 失效条件连续超这么久才真判失效，滤单拍抖动
     recovery_ramp_sec: 1.0
     wheel_velocity_lpf_alpha: 0.5
 
@@ -22,14 +23,28 @@ balance_controller_node:
     lqr_auto_compute_gains: true
     lqr_write_gains_to_yaml: true
     lqr_tuning_yaml: ""
-    k_theta: -0.89239459
-    k_theta_dot: -0.08124025
-    k_x: -0.24027916
-    k_x_dot: -0.30990905
+    k_theta: -0.91803844
+    k_theta_dot: -0.08490032
+    k_x: -0.23609265
+    k_x_dot: -0.35093835
     lqr_output_sign: 1.0
     # 实测站立平衡倾角约 -0.011 rad，对齐 PID 的 pitch_target 偏置
     lqr_pitch_bias: -0.011
     lqr_reference_enabled: true
+    lqr_ref_accel_limit: 0.6    # [m/s²] x_dot_ref 斜坡限幅：停车沿参考减速，防回退
+    lqr_ref_max_lead: 0.2      # [m] |实际位置-x_ref| 全程限幅，防跟踪误差累积成停车大跳变
+
+    # ---- 斜坡补偿：τ_ff + θ_eq（α̂ 来自独立 slope_dyn_obs → /slope/alpha）----
+    # 文档：τ = τ_ff − K(x−x_ref(α̂))；两半都开，禁止只加前馈
+    slope_ff_enabled: true
+    slope_ff_gain: 1.0          # 同时缩放 τ_ff 与 θ_eq（配对一致）；回退到验证过稳定的基线值
+    slope_ff_m: 0.756
+    slope_ff_g: 9.8
+    slope_k_eq: 0.0             # 0=启动时用 xacro 算 r/L（≈1.05）
+    slope_alpha_topic: /slope/alpha
+    slope_ff_ramp_sec: 2.0      # 平地起步：补偿 0→gain 软启动
+    slope_alpha_lpf_sec: 0.5    # α̂ 低通时间常数：斜坡补偿只走低频，切断自激回路
+    slope_alpha_deadband: 0.015 # [rad]≈0.9°：平地 α̂ 小抖动不进补偿，防来回移动
 
     # ---- 运动指令 ----
     cmd_vel_topic: /cmd_vel
@@ -49,3 +64,6 @@ balance_controller_node:
     yaw_output_sign: 1.0
     yaw_cmd_activate_threshold: 0.05
     yaw_rate_deadband: 0.02
+    heading_hold_enabled: true   # 直行时锁定航向，抑制坡上长时漂移
+    kp_heading: 1.5              # [1/s] 航向外环：yaw误差 → 期望角速度
+    max_heading_rate: 0.5        # [rad/s] 航向外环输出限幅

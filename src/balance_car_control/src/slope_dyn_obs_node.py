@@ -32,7 +32,9 @@ class SlopeDynObsNode(Node):
         self.M = 0.756
         self.Iw = 2.0e-5
         self.ell = 0.0345
-        self.c = 0.2
+        # 平地回归标定（τ_f/r − m_eff·v̇ = c·v，固定 m_eff 只拟合 c）：
+        # 前/后半段独立拟合 3.908 / 3.921，一致性很好，取整段拟合值
+        self.c = 3.916
         # 延迟拧到 0.2 仍压不矮鼓包 → 主因多半不是延迟，先回到 0.1
         self.tau_d = 0.1
         self.tau_lpf = 0.1
@@ -42,9 +44,13 @@ class SlopeDynObsNode(Node):
         self.q = 3.0e-4
         self.R_dyn = 0.4
         self.m_eff = self.M + self.Iw / self.r**2
+        # 启动按平地先验：α=0、P 小；前 hold_sec 对外发布 α=0，躲开起立瞬态
+        self.assume_flat_start = True
+        self.flat_hold_sec = 3.0
+        self._t0 = None
 
         self.alpha = 0.0
-        self.P = 1.0e-3
+        self.P = 1.0e-4 if self.assume_flat_start else 1.0e-3
         self.v = self.v_prev = self.vdot = 0.0
         self.tau_raw = 0.0
         self.tau_f = 0.0
@@ -64,8 +70,8 @@ class SlopeDynObsNode(Node):
         self.pub_alpha = self.create_publisher(Float32, "/slope/alpha", 10)
         self.dbg = self.create_publisher(Float64MultiArray, "/slope/dyn_debug", 10)
         self.get_logger().info(
-            "KF: tau_d={:.3f}s tau_lpf={:.3f}s | mismatch=data[14]".format(
-                self.tau_d, self.tau_lpf
+            "KF: assume_flat_start={} hold={:.1f}s P0={:.1e}".format(
+                self.assume_flat_start, self.flat_hold_sec, self.P
             )
         )
 
@@ -137,22 +143,35 @@ class SlopeDynObsNode(Node):
             self.alpha += K * (z - self.alpha)
             self.P *= 1.0 - K
 
-        self.pub_alpha.publish(Float32(data=float(self.alpha)))
+        if self._t0 is None:
+            self._t0 = t
+        # 控制用：起步 hold 内报平地，hold 后 1s 渐入避免阶跃；debug[12] 仍是真实 KF
+        alpha_pub = self.alpha
+        if self.assume_flat_start:
+            t_run = t - self._t0
+            if t_run < self.flat_hold_sec:
+                alpha_pub = 0.0
+            else:
+                alpha_pub = self.alpha * min(
+                    1.0, (t_run - self.flat_hold_sec) / 1.0
+                )
+
+        self.pub_alpha.publish(Float32(data=float(alpha_pub)))
         out = Float64MultiArray()
         out.data = [
             float(sin_dyn),
             float(z_dyn),
             float(sin_kin),
             float(z_kin),
-            float(self.v),#4
-            float(self.vdot),#5
-            float(self.tau_f),
-            float(self._s),
+            float(self.v),#4 速度
+            float(self.vdot),#5 加速度
+            float(self.tau_f),#6 力矩
+            float(self._s),#7 位置
             float(r_kin),#8
             float(f_wz),#9
             float(self.z_kin_held),#10
             float(kin_gate),
-            float(self.alpha), #12
+            float(self.alpha), #12 KF 真值
             float(self.P),
             float(dyn_mismatch),  #14
             float(tau_over_r),    #15

@@ -50,10 +50,20 @@ def launch_setup(context, *args, **kwargs):
         ],
     )
 
+    slope_dyn_obs = Node(
+        package="balance_car_control",
+        executable="slope_dyn_obs_node",
+        name="slope_dyn_obs",
+        output="screen",
+        parameters=[{
+            "use_sim_time": ParameterValue(use_sim_time, value_type=bool),
+        }],
+    )
+
     return [
         TimerAction(
             period=3.0,
-            actions=[balance_controller],
+            actions=[balance_controller, slope_dyn_obs],
         )
     ]
 

@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SLAM · Nav2 · 本仓库导航底层 · 面试讲解稿</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #667085;
+      --line: #d8dee9;
+      --blue: #1d4ed8;
+      --green: #0f766e;
+      --orange: #b45309;
+      --red: #b91c1c;
+      --code-bg: #0f172a;
+      --code-ink: #e5e7eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(1200px 500px at 10% -10%, #dbeafe 0%, transparent 55%),
+        radial-gradient(900px 400px at 100% 0%, #ccfbf1 0%, transparent 50%),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Noto Sans SC", "Source Han Sans SC", "PingFang SC",
+        -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.7;
+    }
+    header {
+      background: linear-gradient(135deg, #0b1220 0%, #1e3a8a 55%, #0f766e 100%);
+      color: white;
+      padding: 48px 24px 40px;
+    }
+    header .wrap, main { max-width: 1120px; margin: 0 auto; }
+    .eyebrow {
+      display: inline-block;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #93c5fd;
+      border: 1px solid rgb(147 197 253 / 35%);
+      border-radius: 999px;
+      padding: 4px 12px;
+      margin-bottom: 14px;
+    }
+    h1 { margin: 0 0 14px; font-size: clamp(28px, 5vw, 40px); line-height: 1.2; }
+    header p { margin: 0; max-width: 860px; color: #dbeafe; font-size: 16px; }
+    main { padding: 24px 16px 64px; }
+    nav, section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 28px rgb(15 23 42 / 6%);
+      padding: 22px;
+      margin-bottom: 18px;
+    }
+    nav ul { margin: 0; padding-left: 20px; columns: 2; column-gap: 28px; }
+    @media (max-width: 720px) { nav ul { columns: 1; } }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 22px;
+      color: var(--blue);
+      border-bottom: 2px solid #bfdbfe;
+      padding-bottom: 8px;
+    }
+    h3 { margin: 22px 0 10px; font-size: 17px; color: var(--green); }
+    h4 { margin: 16px 0 8px; font-size: 15px; color: #334155; }
+    p, li { font-size: 15px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0; }
+    th, td { border: 1px solid var(--line); padding: 9px 11px; text-align: left; vertical-align: top; }
+    th { background: #eff6ff; }
+    .diagram {
+      background: #f8fafc;
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      overflow-x: auto;
+      font-family: ui-monospace, Consolas, "SF Mono", monospace;
+      font-size: 12.5px;
+      white-space: pre;
+      line-height: 1.45;
+    }
+    .note, .warn, .ok, .talk {
+      padding: 12px 14px;
+      margin: 12px 0;
+      font-size: 14px;
+      border-radius: 0 10px 10px 0;
+    }
+    .note { background: #eff6ff; border-left: 4px solid var(--blue); }
+    .warn { background: #fef2f2; border-left: 4px solid var(--red); }
+    .ok { background: #f0fdf4; border-left: 4px solid var(--green); }
+    .talk { background: #fff7ed; border-left: 4px solid var(--orange); }
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-right: 6px;
+    }
+    .tag-slam { background: #dbeafe; color: #1d4ed8; }
+    .tag-nav2 { background: #d1fae5; color: #065f46; }
+    .tag-mine { background: #ffedd5; color: #9a3412; }
+    .tag-qa { background: #fae8ff; color: #7e22ce; }
+    .qa {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 12px 0;
+      background: #fcfdff;
+    }
+    .qa .q { font-weight: 700; color: #1e3a8a; margin-bottom: 6px; }
+    .qa .a { color: #334155; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      background: #f8fafc;
+    }
+    .card strong { display: block; margin-bottom: 6px; color: #0f172a; }
+    .code-block { position: relative; margin: 12px 0; }
+    .code-block pre {
+      margin: 0;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      border-radius: 12px;
+      padding: 16px 48px 16px 16px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .copy-button {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      border: 1px solid #374151;
+      background: #1f2937;
+      color: #e5e7eb;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    footer { text-align: center; color: var(--muted); font-size: 13px; padding: 8px 0 24px; }
+    a { color: #1d4ed8; }
+    code { font-family: ui-monospace, Consolas, monospace; font-size: 0.92em; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="eyebrow">Interview Guide · Two-Wheel Balance Car</div>
+      <h1>SLAM / Nav2 与本仓库导航底层</h1>
+      <p>
+        本仓库是「两轮自平衡车」：已完成平衡控制 + 标准 <code>/cmd_vel</code> 运动接口，
+        <strong>尚未集成完整 SLAM / Nav2 软件栈</strong>。
+        本文按面试讲解顺序整理：行业通用框架 → 本仓库你改过的导航层 → 与 Nav2 的对接边界 → 高频问答。
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <nav>
+      <h2 style="border:none;color:var(--ink);">目录（建议 8–12 分钟口述）</h2>
+      <ul>
+        <li><a href="#s0">0. 30 秒定位：我做了什么</a></li>
+        <li><a href="#s1">1. 移动机器人软件分层</a></li>
+        <li><a href="#s2">2. SLAM 框架（面试通识）</a></li>
+        <li><a href="#s3">3. Nav2 框架（面试通识）</a></li>
+        <li><a href="#s4">4. 本仓库：我改的导航部分</a></li>
+        <li><a href="#s5">5. 设计决策与踩坑点</a></li>
+        <li><a href="#s6">6. 如何接到真正的 Nav2</a></li>
+        <li><a href="#s7">7. 面试问答速查</a></li>
+        <li><a href="#s8">8. 一分钟收尾话术</a></li>
+      </ul>
+    </nav>
+
+    <section id="s0">
+      <h2>0. 30 秒定位：我做了什么</h2>
+      <div class="talk">
+        <strong>口述模板：</strong>
+        「我做的是两轮平衡车的底层运动控制。上层如果以后接 Nav2，它输出的是标准
+        <code>/cmd_vel</code>；我这边负责把 Twist 安全地落到力矩控制：
+        线速度走速度环/位置环，角速度走偏航环，再和平衡力矩做差动混合。
+        也就是说，我做的是 Nav2 Controller 之下、电机驱动之上的那一层。」
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <strong><span class="tag tag-mine">已完成</span>本仓库实际工作</strong>
+          串级 / LQR 平衡、斜坡前馈、<code>MotionCommandAdapter</code>、
+          <code>YawLoop</code>（含航向保持）、<code>PositionLoop</code>、<code>WheelMixer</code>、
+          SafetyLimiter、Gazebo 仿真。
+        </div>
+        <div class="card">
+          <strong><span class="tag tag-slam">未集成</span>SLAM / Nav2 本体</strong>
+          无激光/深度建图节点、无 <code>map→odom→base_link</code> 完整定位树、
+          无 costmap / BT Navigator / Planner Server。RViz 的 Goal Pose 插件存在但无订阅者。
+        </div>
+      </div>
+      <div class="warn">
+        面试时务必先讲清边界：不要把「轮式位置环 / 航向保持」说成「地图定位 / 全局导航」。
+        诚实 + 能讲清楚对接缝，反而加分。
+      </div>
+    </section>
+
+    <section id="s1">
+      <h2>1. 移动机器人软件分层</h2>
+      <p>把整条栈从上到下讲清楚，再落到本仓库，面试官很容易跟上。</p>
+      <div class="diagram">┌──────────────────────────────────────────────────────────┐
+│  任务层 / 应用层     多点巡航、任务编排、业务逻辑            │
+├──────────────────────────────────────────────────────────┤
+│  导航规划层 Nav2     BT · 全局规划 · 局部规划 · 恢复行为     │
+├──────────────────────────────────────────────────────────┤
+│  感知与建图 SLAM     激光/视觉建图 · 定位 · TF · /map        │
+├──────────────────────────────────────────────────────────┤
+│  运动接口 /cmd_vel   Twist(v, ω) —— 行业标准「接缝」         │
+├──────────────────────────────────────────────────────────┤
+│  ★ 本仓库重点        平衡 + 速度/位置环 + 偏航 + 力矩混合     │
+├──────────────────────────────────────────────────────────┤
+│  驱动与仿真          ros2_control · Gazebo · IMU · 轮关节   │
+└──────────────────────────────────────────────────────────┘</div>
+      <div class="ok">
+        <strong>关键认知：</strong><code>/cmd_vel</code> 是 Nav2 与底盘控制的解耦接口。
+        本仓库已经把这层接好了，所以「缺的是上面的建图定位与规划，不是运动协议」。
+      </div>
+    </section>
+
+    <section id="s2">
+      <h2>2. SLAM 框架（面试通识）</h2>
+      <p><span class="tag tag-slam">SLAM</span>Simultaneous Localization and Mapping：一边建地图，一边估计自己在地图中的位姿。</p>
+
+      <h3>2.1 经典流水线</h3>
+      <div class="diagram">传感器(LiDAR/相机/IMU)
+        │
+        ▼
+  前端（Front-end）
+    · 特征提取 / 扫描匹配（ICP、NDT、scan-to-map）
+    · 帧间里程计（相对位姿）
+        │
+        ▼
+  后端（Back-end）
+    · 位姿图优化 / 滤波（EKF、图优化 g2o/Ceres）
+    · 回环检测（Loop Closure）抑制漂移
+        │
+        ▼
+  地图输出
+    · 2D 占用栅格 OccupancyGrid（Nav2 最常用）
+    · 或 3D 点云 / TSDF
+        │
+        ▼
+  定位模式
+    · Mapping：边建边定位
+    · Localization-only：已有地图 + AMCL / 粒子滤波 / scan match</div>
+
+      <h3>2.2 ROS 2 常见方案</h3>
+      <table>
+        <tr><th>方案</th><th>特点</th><th>面试怎么说</th></tr>
+        <tr>
+          <td><code>slam_toolbox</code></td>
+          <td>2D 激光主流；支持 lifelong / 序列化地图</td>
+          <td>室内差速底盘首选之一</td>
+        </tr>
+        <tr>
+          <td><code>Cartographer</code></td>
+          <td>子图 + 回环；2D/3D</td>
+          <td>强调图优化与子图思想</td>
+        </tr>
+        <tr>
+          <td>视觉 SLAM（ORB-SLAM 等）</td>
+          <td>依赖纹理与光照；可融合 IMU</td>
+          <td>说明与激光的互补性</td>
+        </tr>
+        <tr>
+          <td><code>robot_localization</code> / EKF</td>
+          <td>多源融合（轮速+IMU+GPS）</td>
+          <td>常放在里程计层，不是完整 SLAM</td>
+        </tr>
+      </table>
+
+      <h3>2.3 面试必提的 TF 树</h3>
+      <div class="diagram">map  ──(SLAM / AMCL 慢变校正)──►  odom  ──(轮速/IMU 里程计)──►  base_link
+ │                                  │
+ │  全局一致，可跳变修正             │  连续平滑，短期可靠、长期漂移
+ ▼                                  ▼
+Nav2 全局代价地图用 map            局部控制、短时预测常用 odom</div>
+      <div class="talk">
+        <strong>一句话：</strong>「odom 负责连续，map 负责全局不漂；SLAM/定位节点发
+        <code>map→odom</code>，底盘里程计发 <code>odom→base_link</code>。」
+      </div>
+
+      <h3>2.4 与本仓库的关系</h3>
+      <ul>
+        <li>当前传感器：Gazebo IMU + 轮关节；<strong>没有</strong>激光/深度用于建图。</li>
+        <li>文档明确：斜坡估计用 <code>/joint_states</code> 轮速，不依赖 DiffDrive 里程计当「真相」。</li>
+        <li><code>PositionLoop</code> 里的「位置」是<strong>轮弧长积分</strong>，用于停车回位，不是地图坐标系定位。</li>
+      </ul>
+    </section>
+
+    <section id="s3">
+      <h2>3. Nav2 框架（面试通识）</h2>
+      <p><span class="tag tag-nav2">Nav2</span>ROS 2 导航栈：把「目标位姿」变成一串安全的 <code>/cmd_vel</code>。</p>
+
+      <h3>3.1 核心组件</h3>
+      <table>
+        <tr><th>组件</th><th>职责</th><th>常见算法</th></tr>
+        <tr>
+          <td>BT Navigator</td>
+          <td>行为树编排：规划→跟踪→失败恢复</td>
+          <td>XML 行为树，可插 Recoveries</td>
+        </tr>
+        <tr>
+          <td>Planner Server</td>
+          <td>全局路径（map 坐标系）</td>
+          <td>NavFn、Smac、Theta*</td>
+        </tr>
+        <tr>
+          <td>Controller Server</td>
+          <td>局部跟踪，输出 Twist</td>
+          <td>DWB、MPPI、RPP、TEB（插件）</td>
+        </tr>
+        <tr>
+          <td>Smoother</td>
+          <td>路径平滑</td>
+          <td>简单平滑 / Constrained smoother</td>
+        </tr>
+        <tr>
+          <td>Costmap 2D</td>
+          <td>障碍膨胀、动态层</td>
+          <td>static / obstacle / inflation / voxel</td>
+        </tr>
+        <tr>
+          <td>AMCL / 定位</td>
+          <td>已知地图下粒子滤波定位</td>
+          <td>常与 map_server 配合</td>
+        </tr>
+        <tr>
+          <td>Behavior / Recovery</td>
+          <td>卡住后的自救</td>
+          <td>原地旋转、后退、清 costmap</td>
+        </tr>
+      </table>
+
+      <h3>3.2 典型数据流</h3>
+      <div class="diagram">/goal_pose 或 NavigateToPose action
+            │
+            ▼
+     BT Navigator
+       ├─► compute_path_to_pose  → 全局路径 (Path)
+       ├─► follow_path           → Controller → /cmd_vel
+       └─► 失败？ → backup / spin / wait → 再规划
+            │
+            ▼
+     底盘（本仓库 balance_controller）执行 Twist</div>
+
+      <h3>3.3 全局 vs 局部</h3>
+      <div class="grid-2">
+        <div class="card">
+          <strong>全局规划</strong>
+          在整张地图找一条可行路径；更新慢；关心连通性与最优性。
+        </div>
+        <div class="card">
+          <strong>局部控制</strong>
+          在机器人附近滚动窗口跟踪路径、躲动态障碍；输出实时 v/ω；更新快（几十 Hz）。
+        </div>
+      </div>
+
+      <h3>3.4 Costmap 面试要点</h3>
+      <ul>
+        <li><strong>Static layer</strong>：来自 /map</li>
+        <li><strong>Obstacle layer</strong>：激光/点云即时障碍</li>
+        <li><strong>Inflation layer</strong>：按机器人半径膨胀，保证安全距离</li>
+        <li>全局 costmap 多挂在 <code>map</code>；局部 costmap 多挂在 <code>odom</code></li>
+      </ul>
+    </section>
+
+    <section id="s4">
+      <h2>4. 本仓库：我改的导航部分（重点讲）</h2>
+      <p>
+        这里的「导航」= <strong>可被上层导航栈驱动的运动框架</strong>，
+        对应文件主要在 <code>src/balance_car_control/src/</code>。
+      </p>
+
+      <h3>4.1 总览：从 Twist 到左右轮力矩</h3>
+      <div class="diagram">/cmd_vel  Twist{linear.x, angular.z}
+        │
+        ▼
+MotionCommandAdapter          ← 你加的「协议适配 + 安全」
+  · 限幅、单位换算、超时归零
+  · v[m/s] → wheel_v[rad/s] = v / r
+  · ω[rad/s] → target_yaw_rate
+        │
+        ├──────────────────────────────┐
+        ▼                              ▼
+PositionLoop（可选）              YawLoop（你重点改的方向通道）
+  x_target 积分指令轮速             · |ω|大：角速度 PD → turn_tau
+  输出 v_setpoint                   · |ω|≈0：航向保持（锁定 yaw）
+        │                              │
+        ▼                              │
+VelocityLoop / LQR                     │
+  → pitch_target / balance_tau         │
+        │                              │
+        └──────────┬───────────────────┘
+                   ▼
+              WheelMixer
+         left  = balance − turn
+         right = balance + turn
+                   │
+                   ▼
+            SafetyLimiter → /wheel_effort_controller/commands</div>
+
+      <h3>4.2 <code>MotionCommandAdapter</code> —— Nav2 接缝</h3>
+      <p>文件：<code>motion_command.py</code></p>
+      <ul>
+        <li>只做适配，不写控制律（职责清晰，面试好讲）。</li>
+        <li><code>cmd_vel_timeout_sec</code>（默认 0.5 s）无新指令 → 目标归零 → 车回到站立。</li>
+        <li>线速度、角速度、换算后轮速三重限幅，防止上层乱指令打翻车。</li>
+      </ul>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code># 单位约定（面试可直接背）
+cmd_vel.linear.x  [m/s]  → target_wheel_velocity = v / wheel_radius
+cmd_vel.angular.z [rad/s] → target_yaw_rate = ω
+# 例：0.1 m/s，r=0.0325 m → 约 3.08 rad/s</code></pre>
+      </div>
+
+      <h3>4.3 <code>YawLoop</code> —— 你改动最大的「导航相关」逻辑</h3>
+      <p>文件：<code>yaw_loop.py</code>。不是简单的角速度 P，而是<strong>双模式</strong>：</p>
+      <table>
+        <tr><th>模式</th><th>进入条件</th><th>行为</th></tr>
+        <tr>
+          <td>主动转向</td>
+          <td><code>|target_yaw_rate| ≥ yaw_cmd_activate_threshold</code></td>
+          <td>松开航向锁；角速度 PD 跟踪 cmd_vel.angular.z</td>
+        </tr>
+        <tr>
+          <td>航向保持</td>
+          <td>近似直行（角速度指令很小）</td>
+          <td>进入瞬间锁定当前 yaw；外环 yaw→rate_cmd，内环仍走角速度 PD</td>
+        </tr>
+      </table>
+      <div class="talk">
+        <strong>为什么要航向保持？</strong>
+        平衡车直行时，轮子不对称、地面摩擦、IMU 噪声会导致缓慢偏航。
+        没有 heading hold，长距离「直线」会漂；有了它，相当于在底盘层做了简易航向闭环，
+        减轻上层导航的负担。
+      </div>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code># 直行时（伪代码）
+if turning:
+    yaw_ref = None
+    turn_tau = PD(target_yaw_rate - yaw_rate)
+else:
+    if yaw_ref is None: yaw_ref = yaw          # 进入瞬间锁定
+    yaw_error = wrap_pi(yaw_ref - yaw)
+    rate_cmd = clamp(kp_heading * yaw_error, ±max_heading_rate)
+    turn_tau = PD(rate_cmd - yaw_rate)</code></pre>
+      </div>
+      <ul>
+        <li><code>wrap_pi</code>：角度误差折到 (-π, π]，避免 ±180° 附近跳变。</li>
+        <li><code>yaw_rate_deadband</code>：抑制陀螺噪声在站立时乱打差动力矩。</li>
+        <li><code>max_turn_tau</code> 必须明显小于平衡力矩预算，否则转向会「抢走」直立所需力矩。</li>
+      </ul>
+
+      <h3>4.4 <code>PositionLoop</code> —— 容易被误称为「定位」</h3>
+      <p>文件：<code>position_loop.py</code>。三环最外环：位置 → 速度 → 倾角 → 力矩。</p>
+      <div class="ok">
+        <strong>要解决的真实问题：</strong>纯速度环停车时，车会先后仰刹车，轮子倒退一点；
+        速度归零后停在新位置。位置环积分「被命令的轮速」得到 <code>x_target</code>，
+        把倒退量拉回去——这是<strong>轮坐标系行程伺服</strong>，不是 SLAM 定位。
+      </div>
+      <div class="diagram">v_cmd = 0  → x_target 冻结 → 拉回倒退量 → 停在原地
+v_cmd ≠ 0  → x_target 随指令前进 → 帮助跟踪行程
+v_setpoint = v_cmd + v_corr(位置误差)</div>
+
+      <h3>4.5 <code>WheelMixer</code> —— 平衡优先的差动分配</h3>
+      <div class="code-block">
+        <button class="copy-button" type="button">复制</button>
+        <pre><code>left  = balance_tau - turn_tau
+right = balance_tau + turn_tau
+# 同向分量 = 直立/加速；反向分量 = 转向</code></pre>
+      </div>
+      <p>
+        面试加分点：说明「若 <code>|balance|+|turn|</code> 超过单轮饱和，会出现一边转向失效」；
+        工程上用 <code>max_turn_tau</code> 预留平衡预算，而不是事后再抢。
+      </p>
+
+      <h3>4.6 关键文件速查</h3>
+      <table>
+        <tr><th>文件</th><th>你怎么讲</th></tr>
+        <tr><td><code>motion_command.py</code></td><td>Nav2 兼容的指令适配与超时安全</td></tr>
+        <tr><td><code>yaw_loop.py</code></td><td>转向跟踪 + 直行航向保持</td></tr>
+        <tr><td><code>position_loop.py</code></td><td>停车回位的轮弧位置环</td></tr>
+        <tr><td><code>wheel_mixer.py</code></td><td>平衡/转向力矩合成</td></tr>
+        <tr><td><code>balance_controller_node.py</code></td><td>200 Hz 主循环，串联各环</td></tr>
+        <tr><td><code>balance_controller.yaml</code></td><td>cmd_vel / yaw / position 参数</td></tr>
+        <tr><td><code>docs/motion_control_framework.html</code></td><td>框架设计说明（可给面试官看）</td></tr>
+      </table>
+    </section>
+
+    <section id="s5">
+      <h2>5. 设计决策与踩坑点（体现思考深度）</h2>
+      <div class="qa">
+        <div class="q">Q：为什么转向不直接改 pitch_target？</div>
+        <div class="a">
+          A：俯仰是直立自由度，转向应走差动力矩。改 pitch 会和平衡环抢同一控制量，耦合难调。
+          我们让速度通道改 pitch、方向通道改 turn_tau，物理上解耦。
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">Q：为什么 /cmd_vel 要超时归零？</div>
+        <div class="a">
+          A：导航节点或遥控掉线时，如果继续执行最后一帧速度，车会失控冲出。
+          超时归零是移动机器人底盘层的基本安全契约，Nav2 也假定底盘具备这种行为。
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">Q：平衡车接 Nav2 和普通差速车差在哪？</div>
+        <div class="a">
+          A：普通差速车几乎「有速度指令就能走」；平衡车必须先保证倒立摆稳定。
+          所以 Controller 输出的 v/ω 不能过大，且底盘要把力矩预算优先留给平衡。
+          斜坡场景还要倾角前馈，否则 Nav2 以为在平地跟踪路径，实际会栽坡上。
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">Q：PositionLoop 能代替 odom 吗？</div>
+        <div class="a">
+          A：不能。它只在轮坐标系里做短时行程闭环，没有全局一致性，也不处理打滑与地图。
+          真正的导航仍需要里程计话题 +（可选）SLAM/AMCL 提供的 TF。
+        </div>
+      </div>
+    </section>
+
+    <section id="s6">
+      <h2>6. 如何接到真正的 Nav2（体现完整视野）</h2>
+      <p>面试官常问「下一步怎么做」。按依赖顺序答：</p>
+      <ol>
+        <li><strong>传感</strong>：加 2D LiDAR（或深度相机），发布 <code>LaserScan</code>/<code>PointCloud2</code>。</li>
+        <li><strong>里程计</strong>：由轮速 + IMU 发布 <code>nav_msgs/Odometry</code> 与 <code>odom→base_link</code> TF
+          （可考虑 <code>robot_localization</code>）。</li>
+        <li><strong>建图</strong>：<code>slam_toolbox</code> 出图；保存后用 <code>map_server</code> + AMCL 定位。</li>
+        <li><strong>Nav2 bringup</strong>：配置 footprint（两轮车近似矩形/圆形）、最大 v/ω 与本仓库限幅一致。</li>
+        <li><strong>保持本仓库不动</strong>：Nav2 Controller 直接往 <code>/cmd_vel</code> 发即可。</li>
+      </ol>
+      <div class="diagram">slam_toolbox / AMCL
+        │  map↔odom
+        ▼
+     Nav2 (planner + MPPI/DWB)
+        │  /cmd_vel
+        ▼
+ balance_controller（已完成）→ 轮力矩</div>
+      <div class="note">
+        参数对齐很关键：Nav2 的 <code>max_vel_x / max_vel_theta</code> 应 ≤
+        本仓库 <code>max_linear_velocity / max_angular_velocity</code>，
+        否则上层以为能转，底盘已被削顶，路径跟踪会振荡。
+      </div>
+    </section>
+
+    <section id="s7">
+      <h2>7. 面试问答速查</h2>
+
+      <h3><span class="tag tag-qa">概念</span></h3>
+      <div class="qa">
+        <div class="q">SLAM 前端和后端分别做什么？</div>
+        <div class="a">前端做帧间关联与相对运动估计；后端做全局优化与回环，抑制累计误差。</div>
+      </div>
+      <div class="qa">
+        <div class="q">map 和 odom 坐标系有什么区别？</div>
+        <div class="a">odom 连续短期准、长期漂；map 全局一致、定位修正时可能跳变。Nav2 全局规划看 map，局部控制常看 odom。</div>
+      </div>
+      <div class="qa">
+        <div class="q">Nav2 里 Planner 和 Controller 的区别？</div>
+        <div class="a">Planner 出全局路径；Controller 在局部窗口跟踪路径并输出 /cmd_vel，同时处理近距障碍。</div>
+      </div>
+
+      <h3><span class="tag tag-mine">结合本项目</span></h3>
+      <div class="qa">
+        <div class="q">你在导航相关部分具体改了什么？</div>
+        <div class="a">
+          接入标准 /cmd_vel；实现 MotionCommandAdapter（换算/限幅/超时）；
+          YawLoop 角速度跟踪 + 直行航向保持；PositionLoop 解决停车倒退；
+          WheelMixer 保证转向不抢平衡力矩。
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">为什么说你的接口已经 Nav2-ready？</div>
+        <div class="a">
+          因为消费的是 geometry_msgs/Twist，话题名 /cmd_vel，语义与差速底盘一致；
+          Nav2 Controller Server 无需改协议即可对接。缺的是传感器、TF 与 Nav2 进程本身。
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">调参顺序怎么做？</div>
+        <div class="a">
+          先无指令站稳 → 小线速度标定速度通道 → 小角速度标定 kp_yaw / max_turn_tau →
+          开航向保持看直行漂移 → 最后组合弧线；再考虑接上层规划。
+        </div>
+      </div>
+    </section>
+
+    <section id="s8">
+      <h2>8. 一分钟收尾话术</h2>
+      <div class="talk">
+        「总结一下：我熟悉 SLAM 的前端匹配、后端优化、回环和 map/odom TF 分工；
+        也熟悉 Nav2 的行为树、全局规划、局部控制和 costmap 分层。
+        在当前两轮平衡车项目里，我把重心放在更难的底层——先让倒立摆在斜坡上稳，
+        再提供与 Nav2 兼容的 /cmd_vel 运动层，特别做了偏航跟踪、航向保持、停车位置环和力矩预算分配。
+        下一步只需要补上激光、里程计 TF 和 Nav2 bringup，就能把完整导航跑通。」
+      </div>
+      <div class="ok">
+        配套文档：
+        <code>docs/motion_control_framework.html</code>（运动框架）、
+        <code>docs/three_loop_cascade_and_position_tuning.html</code>（位置环）、
+        <code>docs/balance_control_architecture.html</code>（整体控制架构）。
+      </div>
+    </section>
+
+    <footer>docs/slam_nav2_interview_guide.html · 面试讲解稿 · 基于 two_wheel_self_balance_car 现状</footer>
+  </main>
+
+  <script>
+    document.querySelectorAll(".code-block").forEach(function (block) {
+      var button = block.querySelector(".copy-button");
+      var code = block.querySelector("code");
+      if (!button || !code) return;
+      button.addEventListener("click", function () {
+        navigator.clipboard.writeText(code.innerText).then(function () {
+          var t = button.textContent;
+          button.textContent = "已复制";
+          setTimeout(function () { button.textContent = t; }, 1500);
+        }).catch(function () {
+          button.textContent = "失败";
+          setTimeout(function () { button.textContent = "复制"; }, 1500);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
